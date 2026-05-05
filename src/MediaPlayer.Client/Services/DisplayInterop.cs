@@ -43,6 +43,18 @@ public sealed class DisplayInterop : IAsyncDisposable
         await module.InvokeVoidAsync("exitFullscreen").ConfigureAwait(false);
     }
 
+    public async Task<bool> IsFullscreenAsync()
+    {
+        var module = await moduleTask.Value.ConfigureAwait(false);
+        return await module.InvokeAsync<bool>("isFullscreen").ConfigureAwait(false);
+    }
+
+    public async Task ToggleFullscreenAsync()
+    {
+        var module = await moduleTask.Value.ConfigureAwait(false);
+        await module.InvokeVoidAsync("toggleFullscreen").ConfigureAwait(false);
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (moduleTask.IsValueCreated)

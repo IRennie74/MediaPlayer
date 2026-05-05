@@ -42,3 +42,15 @@ export function exitFullscreen() {
 export function isFullscreen() {
     return !!document.fullscreenElement;
 }
+
+export async function toggleFullscreen() {
+    if (document.fullscreenElement) {
+        try { if (document.exitFullscreen) await document.exitFullscreen(); } catch {}
+    } else {
+        const el = document.documentElement;
+        try {
+            if (el.requestFullscreen) await el.requestFullscreen();
+            else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+        } catch {}
+    }
+}

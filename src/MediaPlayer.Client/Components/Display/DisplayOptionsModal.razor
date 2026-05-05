@@ -1,0 +1,80 @@
+@*
+    Tiny options menu shown by Ctrl+Shift+D (or the invisible top-right
+    corner click). Lets the operator re-claim this screen as a different
+    kiosk, jump to admin (which exits fullscreen first), or toggle the
+    browser's native fullscreen mode.
+*@
+
+@using MediaPlayer.Client.Services
+@inject DisplayInterop Interop
+
+<Modal @bind-Visible="visible">
+    <ModalContent Centered Size="ModalSize.Small">
+        <ModalHeader>
+            <ModalTitle><Icon Name="IconName.Settings" /> Options</ModalTitle>
+            <CloseButton />
+        </ModalHeader>
+        <ModalBody>
+            <div class="d-grid gap-2">
+                <Button Color="Color.Primary" Clicked="HandlePickDisplay">
+                    <Icon Name="IconName.Tv" /> Pick this display
+                </Button>
+                <Button Color="Color.Info" Clicked="HandleToggleFullscreen">
+                    <Icon Name="@(isFullscreen ? IconName.Compress : IconName.Expand)" />
+                    @(isFullscreen ? "Exit fullscreen" : "Enter fullscreen")
+                </Button>
+                <Button Color="Color.Secondary" Clicked="HandleOpenAdmin">
+                    <Icon Name="IconName.Lock" /> Open admin
+                </Button>
+            </div>
+        </ModalBody>
+        <ModalFooter>
+            <Button Color="Color.Light" Clicked="HideAsync">Cancel</Button>
+        </ModalFooter>
+    </ModalContent>
+</Modal>
+
+@code {
+    private bool visible;
+    private bool isFullscreen;
+
+    [Parameter] public EventCallback OnPickDisplay { get; set; }
+    [Parameter] public EventCallback OnOpenAdmin { get; set; }
+
+    public async Task ShowAsync()
+    {
+        // Refresh the fullscreen flag so the toggle button label is accurate.
+        isFullscreen = await Interop.IsFullscreenAsync();
+        visible = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private Task HideAsync()
+    {
+        visible = false;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private async Task HandlePickDisplay()
+    {
+        visible = false;
+        await OnPickDisplay.InvokeAsync();
+    }
+
+    private async Task HandleOpenAdmin()
+    {
+        // Exit fullscreen before leaving so the admin chrome isn't constrained.
+        await Interop.ExitFullscreenAsync();
+        visible = false;
+        await OnOpenAdmin.InvokeAsync();
+    }
+
+    private async Task HandleToggleFullscreen()
+    {
+        await Interop.ToggleFullscreenAsync();
+        // Optimistically flip; next ShowAsync re-syncs from the browser.
+        isFullscreen = !isFullscreen;
+        visible = false;
+        await InvokeAsync(StateHasChanged);
+    }
+}

@@ -5,9 +5,11 @@
 
 @*
     The kiosk URL. Resolves the current display assignment, loads the
-    assigned playlist + its media, and hands them to the SlideHost. To any
-    observer the page looks like only a slideshow — the picker is invisible
-    until summoned via Ctrl+Shift+D or a transparent corner click.
+    assigned playlist + its media, and hands them to the SlideHost.
+
+    Hotkey UX: to any observer the page looks like only a slideshow. Pressing
+    Ctrl+Shift+D (or clicking the invisible top-right corner) opens a small
+    Options modal with two choices — re-pick the display, or jump to admin.
 *@
 
 @using MediaPlayer.Client.Services
@@ -18,6 +20,7 @@
 @inject IRepository<Playlist> PlaylistRepo
 @inject IRepository<MediaItem> MediaRepo
 @inject DisplayInterop Interop
+@inject NavigationManager Nav
 
 <PageTitle>MediaPlayer</PageTitle>
 
@@ -33,7 +36,7 @@
         <div class="text-white-50 d-flex flex-column justify-content-center align-items-center h-100">
             <Icon Name="IconName.Tv" Style="font-size: 4rem;" />
             <Paragraph Margin="Margin.Is3.FromTop">Display not yet claimed.</Paragraph>
-            <Paragraph TextColor="TextColor.Muted">Press <Code>Ctrl + Shift + D</Code> to assign a kiosk.</Paragraph>
+            <Paragraph TextColor="TextColor.Muted">Press <Code>Ctrl + Shift + D</Code> to open options.</Paragraph>
         </div>
     }
     else if (kiosk is null)
@@ -53,14 +56,18 @@
         <SlideHost Items="playlist.Items" MediaById="mediaById" Shuffle="playlist.ShuffleEnabled" />
     }
 
-    @* Transparent 60x60 corner trigger — opens the picker without revealing chrome. *@
+    @* Transparent 60x60 corner trigger — opens the Options modal without revealing chrome. *@
     <div class="position-absolute top-0 end-0"
          style="width: 60px; height: 60px; cursor: default;"
          @onclick:stopPropagation
-         @onclick="ShowPickerAsync"
-         title="Pick display">
+         @onclick="ShowOptionsAsync"
+         title="Options">
     </div>
 </div>
+
+<DisplayOptionsModal @ref="optionsModal"
+                     OnPickDisplay="ShowPickerAsync"
+                     OnOpenAdmin="OpenAdmin" />
 
 <DisplayPickerModal @ref="pickerModal" OnAssignmentChanged="ReloadAsync" />
 
@@ -75,6 +82,7 @@
     private Playlist? playlist;
     private Dictionary<Guid, MediaItem> mediaById = new();
 
+    private DisplayOptionsModal? optionsModal;
     private DisplayPickerModal? pickerModal;
     private DotNetObjectReference<DisplayPage>? selfRef;
 
@@ -92,8 +100,9 @@
         }
     }
 
+    /// <summary>JS hotkey callback — Ctrl+Shift+D opens the Options menu.</summary>
     [JSInvokable]
-    public Task OpenDisplayPicker() => ShowPickerAsync();
+    public Task OpenDisplayPicker() => ShowOptionsAsync();
 
     private async Task ReloadAsync()
     {
@@ -132,7 +141,10 @@
         loading = false;
     }
 
+    private Task ShowOptionsAsync() => optionsModal?.ShowAsync() ?? Task.CompletedTask;
     private Task ShowPickerAsync() => pickerModal?.ShowAsync() ?? Task.CompletedTask;
+
+    private void OpenAdmin() => Nav.NavigateTo("/admin");
 
     private async Task HandleAnyClickAsync()
     {
