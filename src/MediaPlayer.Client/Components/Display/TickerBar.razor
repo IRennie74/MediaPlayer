@@ -1,0 +1,76 @@
+@*
+    Bottom-of-screen ticker bar for the kiosk display.
+
+    Layout:  [ pill ] [ pill ] [ pill ] | <----- scrolling marquee ----->
+
+    The single CSS rule in this file (a 3-line @keyframes block) is the only
+    place we deviate from the "no custom CSS file" convention — the marquee
+    needs a continuous left-translate animation that Bootstrap utility
+    classes alone can't express. Scoped to this component, no separate .css
+    file is added.
+*@
+
+@if (Items.Count == 0)
+{
+    return;
+}
+
+<style>
+    @@keyframes ticker-scroll {
+        0%   { transform: translateX(0); }
+        100% { transform: translateX(-100%); }
+    }
+</style>
+
+<div class="bg-primary text-white px-3 py-2 d-flex align-items-center gap-3"
+     style="min-height: 48px;">
+
+    @if (Pills.Count > 0)
+    {
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            @foreach (var pill in Pills)
+            {
+                <Badge Color="@MapColor(pill.ColorHint)">@pill.Text</Badge>
+            }
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(MarqueeText))
+    {
+        <div class="flex-grow-1 overflow-hidden text-nowrap" style="position: relative;">
+            <span style="display: inline-block; padding-left: 100%;
+                         animation: ticker-scroll @($"{MarqueeDurationSeconds}s") linear infinite;">
+                @MarqueeText
+            </span>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<TickerItem> Items { get; set; } = Array.Empty<TickerItem>();
+
+    private const string Separator = "  •  ";
+
+    private IReadOnlyList<TickerItem> Pills =>
+        Items.Where(i => i.Kind == TickerItemKind.Pill).OrderBy(i => i.OrderIndex).ToArray();
+
+    private string MarqueeText =>
+        string.Join(Separator,
+            Items.Where(i => i.Kind == TickerItemKind.Scrolling)
+                 .OrderBy(i => i.OrderIndex)
+                 .Select(i => i.Text));
+
+    // Derive duration from text length so long messages don't whip past.
+    // Floors at 15s for very short messages.
+    private int MarqueeDurationSeconds => Math.Max(15, MarqueeText.Length / 4);
+
+    private static Color MapColor(string? hint) => hint switch
+    {
+        "Primary" => Color.Primary,
+        "Info" => Color.Info,
+        "Success" => Color.Success,
+        "Warning" => Color.Warning,
+        "Danger" => Color.Danger,
+        _ => Color.Light,
+    };
+}

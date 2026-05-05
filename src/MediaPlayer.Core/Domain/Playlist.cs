@@ -11,5 +11,12 @@ public sealed record Playlist : IEntity
     public required string Name { get; init; }
     public IReadOnlyList<PlaylistItem> Items { get; init; } = Array.Empty<PlaylistItem>();
     public bool ShuffleEnabled { get; init; }
+
+    /// <summary>Whether the bottom ticker bar shows when this playlist is on a kiosk.</summary>
+    public bool TickerEnabled { get; init; }
+
+    /// <summary>Per-playlist ticker entries. Defaults to empty for legacy data.</summary>
+    public IReadOnlyList<TickerItem> TickerItems { get; init; } = Array.Empty<TickerItem>();
+
     public DateTimeOffset UpdatedAt { get; init; } = DateTimeOffset.UtcNow;
 }

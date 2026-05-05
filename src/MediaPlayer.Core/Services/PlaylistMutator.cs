@@ -53,4 +53,46 @@ public static class PlaylistMutator
 
     private static IReadOnlyList<PlaylistItem> Reindex(IEnumerable<PlaylistItem> items)
         => items.Select((item, idx) => item with { OrderIndex = idx }).ToArray();
+
+    // ----- Ticker items -----------------------------------------------------
+
+    public static Playlist AppendTickerItem(Playlist playlist, TickerItem item)
+    {
+        var withCorrectIndex = item with { OrderIndex = playlist.TickerItems.Count };
+        var items = playlist.TickerItems.Concat(new[] { withCorrectIndex }).ToArray();
+        return playlist with { TickerItems = items, UpdatedAt = DateTimeOffset.UtcNow };
+    }
+
+    public static Playlist RemoveTickerItem(Playlist playlist, Guid itemId)
+    {
+        var items = playlist.TickerItems.Where(i => i.Id != itemId);
+        return playlist with { TickerItems = ReindexTicker(items), UpdatedAt = DateTimeOffset.UtcNow };
+    }
+
+    public static Playlist UpdateTickerItem(Playlist playlist, TickerItem updated)
+    {
+        var items = playlist.TickerItems.Select(i => i.Id == updated.Id ? updated : i).ToArray();
+        return playlist with { TickerItems = items, UpdatedAt = DateTimeOffset.UtcNow };
+    }
+
+    public static Playlist MoveTickerUp(Playlist playlist, Guid itemId)
+    {
+        var ordered = playlist.TickerItems.OrderBy(i => i.OrderIndex).ToList();
+        var index = ordered.FindIndex(i => i.Id == itemId);
+        if (index <= 0) return playlist;
+        (ordered[index - 1], ordered[index]) = (ordered[index], ordered[index - 1]);
+        return playlist with { TickerItems = ReindexTicker(ordered), UpdatedAt = DateTimeOffset.UtcNow };
+    }
+
+    public static Playlist MoveTickerDown(Playlist playlist, Guid itemId)
+    {
+        var ordered = playlist.TickerItems.OrderBy(i => i.OrderIndex).ToList();
+        var index = ordered.FindIndex(i => i.Id == itemId);
+        if (index < 0 || index >= ordered.Count - 1) return playlist;
+        (ordered[index + 1], ordered[index]) = (ordered[index], ordered[index + 1]);
+        return playlist with { TickerItems = ReindexTicker(ordered), UpdatedAt = DateTimeOffset.UtcNow };
+    }
+
+    private static IReadOnlyList<TickerItem> ReindexTicker(IEnumerable<TickerItem> items)
+        => items.Select((item, idx) => item with { OrderIndex = idx }).ToArray();
 }

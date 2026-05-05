@@ -24,36 +24,41 @@
 
 <PageTitle>MediaPlayer</PageTitle>
 
-<div class="vh-100 vw-100 bg-black position-relative" @onclick="HandleAnyClickAsync">
-    @if (loading)
+<div class="vh-100 vw-100 bg-black position-relative d-flex flex-column" @onclick="HandleAnyClickAsync">
+    <div class="flex-grow-1 position-relative overflow-hidden">
+        @if (loading)
+        {
+            <LoadingIndicator Inverse="true" Message="Loading kiosk..." />
+        }
+        else if (assignment is null)
+        {
+            <div class="text-white-50 d-flex flex-column justify-content-center align-items-center h-100">
+                <Icon Name="IconName.Tv" Style="font-size: 4rem;" />
+                <Paragraph Margin="Margin.Is3.FromTop">Display not yet claimed.</Paragraph>
+                <Paragraph TextColor="TextColor.Muted">Press <Code>Ctrl + Shift + D</Code> to open options.</Paragraph>
+            </div>
+        }
+        else if (kiosk is null)
+        {
+            <div class="text-warning d-flex justify-content-center align-items-center h-100">
+                Kiosk no longer exists. Press Ctrl+Shift+D to reassign.
+            </div>
+        }
+        else if (playlist is null)
+        {
+            <div class="text-white-50 d-flex justify-content-center align-items-center h-100">
+                No playlist assigned to this kiosk.
+            </div>
+        }
+        else
+        {
+            <SlideHost Items="playlist.Items" MediaById="mediaById" Shuffle="playlist.ShuffleEnabled" />
+        }
+    </div>
+
+    @if (playlist is not null && playlist.TickerEnabled && playlist.TickerItems.Count > 0)
     {
-        <div class="text-white-50 d-flex justify-content-center align-items-center h-100">
-            Loading...
-        </div>
-    }
-    else if (assignment is null)
-    {
-        <div class="text-white-50 d-flex flex-column justify-content-center align-items-center h-100">
-            <Icon Name="IconName.Tv" Style="font-size: 4rem;" />
-            <Paragraph Margin="Margin.Is3.FromTop">Display not yet claimed.</Paragraph>
-            <Paragraph TextColor="TextColor.Muted">Press <Code>Ctrl + Shift + D</Code> to open options.</Paragraph>
-        </div>
-    }
-    else if (kiosk is null)
-    {
-        <div class="text-warning d-flex justify-content-center align-items-center h-100">
-            Kiosk no longer exists. Press Ctrl+Shift+D to reassign.
-        </div>
-    }
-    else if (playlist is null)
-    {
-        <div class="text-white-50 d-flex justify-content-center align-items-center h-100">
-            No playlist assigned to this kiosk.
-        </div>
-    }
-    else
-    {
-        <SlideHost Items="playlist.Items" MediaById="mediaById" Shuffle="playlist.ShuffleEnabled" />
+        <TickerBar Items="playlist.TickerItems" />
     }
 
     @* Transparent 60x60 corner trigger — opens the Options modal without revealing chrome. *@

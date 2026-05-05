@@ -28,7 +28,7 @@
     <ContentCard Title="@($"All Kiosks ({kiosks.Count})")">
         @if (loading)
         {
-            <Paragraph TextColor="TextColor.Muted">Loading...</Paragraph>
+            <LoadingIndicator FillHeight="false" />
         }
         else if (kiosks.Count == 0)
         {

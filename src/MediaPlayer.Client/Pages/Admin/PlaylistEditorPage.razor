@@ -10,7 +10,7 @@
 <AuthGuard>
     @if (loading)
     {
-        <Paragraph TextColor="TextColor.Muted">Loading...</Paragraph>
+        <LoadingIndicator FillHeight="false" />
     }
     else if (playlist is null)
     {
@@ -126,8 +126,87 @@
             </ChildContent>
         </ContentCard>
 
+        <ContentCard Title="@($"Ticker ({playlist.TickerItems.Count})")">
+            <HeaderActions>
+                <Switch TValue="bool" @bind-Checked="tickerEnabledDraft" Margin="Margin.Is3.FromEnd">
+                    @(tickerEnabledDraft ? "Ticker on" : "Ticker off")
+                </Switch>
+                <Button Color="Color.Primary" Size="Size.Small" Clicked="OpenTickerEditorAsync"
+                        Disabled="@(!tickerEnabledDraft)">
+                    <Icon Name="IconName.Add" /> Add Ticker Item
+                </Button>
+            </HeaderActions>
+            <ChildContent>
+                @if (!tickerEnabledDraft)
+                {
+                    <Paragraph TextColor="TextColor.Muted" Margin="Margin.Is0">
+                        Ticker is off for this playlist. Toggle it on to add items.
+                    </Paragraph>
+                }
+                else if (playlist.TickerItems.Count == 0)
+                {
+                    <Paragraph TextColor="TextColor.Muted" Margin="Margin.Is0">
+                        No ticker items yet. Click <strong>Add Ticker Item</strong> to add one.
+                    </Paragraph>
+                }
+                else
+                {
+                    <Table Hoverable Striped>
+                        <TableHeader ThemeContrast="ThemeContrast.Light">
+                            <TableRow>
+                                <TableHeaderCell>#</TableHeaderCell>
+                                <TableHeaderCell>Kind</TableHeaderCell>
+                                <TableHeaderCell>Color</TableHeaderCell>
+                                <TableHeaderCell>Text</TableHeaderCell>
+                                <TableHeaderCell Class="text-end">Actions</TableHeaderCell>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            @foreach (var t in playlist.TickerItems.OrderBy(i => i.OrderIndex))
+                            {
+                                <TableRow @key="t.Id">
+                                    <TableRowCell>@(t.OrderIndex + 1)</TableRowCell>
+                                    <TableRowCell>
+                                        <Badge Color="@(t.Kind == TickerItemKind.Pill ? Color.Info : Color.Primary)">
+                                            @t.Kind
+                                        </Badge>
+                                    </TableRowCell>
+                                    <TableRowCell>
+                                        <Badge Color="@TickerColor(t.ColorHint)">@(t.ColorHint ?? "Light")</Badge>
+                                    </TableRowCell>
+                                    <TableRowCell>@TruncatePreview(t.Text)</TableRowCell>
+                                    <TableRowCell Class="text-end">
+                                        <Button Color="Color.Light" Size="Size.Small" Margin="Margin.Is1.FromEnd"
+                                                Clicked="@(() => MoveTickerUp(t))" Disabled="@(t.OrderIndex == 0)">
+                                            <Icon Name="IconName.AngleUp" />
+                                        </Button>
+                                        <Button Color="Color.Light" Size="Size.Small" Margin="Margin.Is1.FromEnd"
+                                                Clicked="@(() => MoveTickerDown(t))"
+                                                Disabled="@(t.OrderIndex == playlist.TickerItems.Count - 1)">
+                                            <Icon Name="IconName.AngleDown" />
+                                        </Button>
+                                        <Button Color="Color.Warning" Size="Size.Small" Margin="Margin.Is1.FromEnd"
+                                                Clicked="@(() => OpenTickerEditAsync(t))">
+                                            <Icon Name="IconName.Edit" />
+                                        </Button>
+                                        <Button Color="Color.Danger" Size="Size.Small"
+                                                Clicked="@(() => RemoveTickerItem(t))">
+                                            <Icon Name="IconName.Delete" />
+                                        </Button>
+                                    </TableRowCell>
+                                </TableRow>
+                            }
+                        </TableBody>
+                    </Table>
+                }
+            </ChildContent>
+        </ContentCard>
+
         <MediaPickerModal @ref="pickerModal" OnPicked="HandlePickedAsync" />
         <PlaylistItemEditModal @ref="itemEditModal" OnSaved="HandleItemSaved" />
+        <TickerItemEditModal @ref="tickerEditModal"
+                             OnAdded="HandleTickerAdded"
+                             OnUpdated="HandleTickerUpdated" />
     }
 </AuthGuard>
 
@@ -139,10 +218,12 @@
     private Playlist? playlist;
     private string nameDraft = string.Empty;
     private bool shuffleDraft;
+    private bool tickerEnabledDraft;
     private Dictionary<Guid, MediaItem> mediaById = new();
 
     private MediaPickerModal? pickerModal;
     private PlaylistItemEditModal? itemEditModal;
+    private TickerItemEditModal? tickerEditModal;
 
     protected override async Task OnInitializedAsync()
     {
@@ -152,6 +233,7 @@
         {
             nameDraft = playlist.Name;
             shuffleDraft = playlist.ShuffleEnabled;
+            tickerEnabledDraft = playlist.TickerEnabled;
         }
         var allMedia = await MediaRepo.FindAllAsync();
         mediaById = allMedia.ToDictionary(m => m.Id);
@@ -168,6 +250,7 @@
             {
                 Name = string.IsNullOrWhiteSpace(nameDraft) ? "Untitled playlist" : nameDraft.Trim(),
                 ShuffleEnabled = shuffleDraft,
+                TickerEnabled = tickerEnabledDraft,
                 UpdatedAt = DateTimeOffset.UtcNow,
             };
             await PlaylistRepo.UpdateAsync(playlist);
@@ -220,4 +303,59 @@
         playlist = PlaylistMutator.UpdateItem(playlist, updated);
         await PlaylistRepo.UpdateAsync(playlist);
     }
+
+    // ---- Ticker actions -----------------------------------------------------
+
+    private Task OpenTickerEditorAsync() => tickerEditModal?.ShowAddAsync() ?? Task.CompletedTask;
+
+    private Task OpenTickerEditAsync(TickerItem item)
+        => tickerEditModal?.ShowEditAsync(item) ?? Task.CompletedTask;
+
+    private async Task HandleTickerAdded(TickerItem item)
+    {
+        if (playlist is null) return;
+        playlist = PlaylistMutator.AppendTickerItem(playlist, item);
+        await PlaylistRepo.UpdateAsync(playlist);
+    }
+
+    private async Task HandleTickerUpdated(TickerItem item)
+    {
+        if (playlist is null) return;
+        playlist = PlaylistMutator.UpdateTickerItem(playlist, item);
+        await PlaylistRepo.UpdateAsync(playlist);
+    }
+
+    private async Task MoveTickerUp(TickerItem item)
+    {
+        if (playlist is null) return;
+        playlist = PlaylistMutator.MoveTickerUp(playlist, item.Id);
+        await PlaylistRepo.UpdateAsync(playlist);
+    }
+
+    private async Task MoveTickerDown(TickerItem item)
+    {
+        if (playlist is null) return;
+        playlist = PlaylistMutator.MoveTickerDown(playlist, item.Id);
+        await PlaylistRepo.UpdateAsync(playlist);
+    }
+
+    private async Task RemoveTickerItem(TickerItem item)
+    {
+        if (playlist is null) return;
+        playlist = PlaylistMutator.RemoveTickerItem(playlist, item.Id);
+        await PlaylistRepo.UpdateAsync(playlist);
+    }
+
+    private static Color TickerColor(string? hint) => hint switch
+    {
+        "Primary" => Color.Primary,
+        "Info" => Color.Info,
+        "Success" => Color.Success,
+        "Warning" => Color.Warning,
+        "Danger" => Color.Danger,
+        _ => Color.Light,
+    };
+
+    private static string TruncatePreview(string text)
+        => text.Length <= 60 ? text : text[..57] + "...";
 }

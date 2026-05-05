@@ -17,7 +17,7 @@
     <ContentCard Title="@($"All Playlists ({playlists.Count})")">
         @if (loading)
         {
-            <Paragraph TextColor="TextColor.Muted">Loading...</Paragraph>
+            <LoadingIndicator FillHeight="false" />
         }
         else if (playlists.Count == 0)
         {

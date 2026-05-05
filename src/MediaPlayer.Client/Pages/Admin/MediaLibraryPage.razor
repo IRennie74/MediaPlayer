@@ -23,7 +23,7 @@
         <ChildContent>
             @if (loading)
             {
-                <Paragraph TextColor="TextColor.Muted">Loading...</Paragraph>
+                <LoadingIndicator FillHeight="false" />
             }
             else if (Filtered.Count == 0)
             {

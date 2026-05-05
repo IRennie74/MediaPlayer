@@ -1,0 +1,151 @@
+@*
+    Add / edit one ticker entry. Caller decides which callback to bind:
+    OnAdded for a brand-new item (Id auto-generated), OnUpdated for changes
+    to an existing one (same Id preserved).
+*@
+
+<Modal @bind-Visible="visible">
+    <ModalContent Centered>
+        <ModalHeader>
+            <ModalTitle>
+                <Icon Name="IconName.List" /> @(isNew ? "Add ticker item" : "Edit ticker item")
+            </ModalTitle>
+            <CloseButton />
+        </ModalHeader>
+        <ModalBody>
+            <Field>
+                <FieldLabel>Kind</FieldLabel>
+                <Select TValue="TickerItemKind" @bind-SelectedValue="kindDraft">
+                    <SelectItem Value="TickerItemKind.Pill">Pill (static badge on the left)</SelectItem>
+                    <SelectItem Value="TickerItemKind.Scrolling">Scrolling (joins the marquee on the right)</SelectItem>
+                </Select>
+            </Field>
+            <Field>
+                <FieldLabel>Color</FieldLabel>
+                <Select TValue="string" @bind-SelectedValue="colorDraft">
+                    @foreach (var option in ColorOptions)
+                    {
+                        <SelectItem Value="option.Value">@option.Label</SelectItem>
+                    }
+                </Select>
+                <FieldHelp>Used for the badge background (Pill) or the marquee text accent.</FieldHelp>
+            </Field>
+            <Field>
+                <FieldLabel>Text</FieldLabel>
+                <MemoEdit Rows="2" @bind-Text="textDraft" Placeholder="e.g. Welcome to the lobby" />
+                <FieldHelp>Required, up to @MaxLength characters.</FieldHelp>
+            </Field>
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <Alert Color="Color.Danger" Visible Margin="Margin.Is2.FromTop">
+                    <AlertDescription>@errorMessage</AlertDescription>
+                </Alert>
+            }
+        </ModalBody>
+        <ModalFooter>
+            <Button Color="Color.Secondary" Clicked="HideAsync">Cancel</Button>
+            <Button Color="Color.Success" Clicked="SaveAsync">
+                <Icon Name="IconName.Save" /> Save
+            </Button>
+        </ModalFooter>
+    </ModalContent>
+</Modal>
+
+@code {
+    private const int MaxLength = 500;
+
+    private bool visible;
+    private bool isNew = true;
+    private Guid editingId;
+
+    private TickerItemKind kindDraft = TickerItemKind.Pill;
+    private string colorDraft = "Light";
+    private string textDraft = string.Empty;
+    private string? errorMessage;
+
+    [Parameter] public EventCallback<TickerItem> OnAdded { get; set; }
+    [Parameter] public EventCallback<TickerItem> OnUpdated { get; set; }
+
+    private static readonly (string Value, string Label)[] ColorOptions = new[]
+    {
+        ("Light", "Light (default)"),
+        ("Primary", "Primary (blue)"),
+        ("Info", "Info (teal)"),
+        ("Success", "Success (green)"),
+        ("Warning", "Warning (yellow)"),
+        ("Danger", "Danger (red)"),
+    };
+
+    public Task ShowAddAsync()
+    {
+        isNew = true;
+        editingId = Guid.Empty;
+        kindDraft = TickerItemKind.Pill;
+        colorDraft = "Light";
+        textDraft = string.Empty;
+        errorMessage = null;
+        visible = true;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    public Task ShowEditAsync(TickerItem existing)
+    {
+        isNew = false;
+        editingId = existing.Id;
+        kindDraft = existing.Kind;
+        colorDraft = existing.ColorHint ?? "Light";
+        textDraft = existing.Text;
+        errorMessage = null;
+        visible = true;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task HideAsync()
+    {
+        visible = false;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SaveAsync()
+    {
+        var trimmed = (textDraft ?? string.Empty).Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            errorMessage = "Text is required.";
+            return;
+        }
+        if (trimmed.Length > MaxLength)
+        {
+            errorMessage = $"Text must be {MaxLength} characters or fewer.";
+            return;
+        }
+
+        var hint = colorDraft == "Light" ? null : colorDraft;
+        if (isNew)
+        {
+            var created = new TickerItem
+            {
+                Id = Guid.NewGuid(),
+                Text = trimmed,
+                OrderIndex = 0, // mutator will fix this on append
+                Kind = kindDraft,
+                ColorHint = hint,
+            };
+            visible = false;
+            await OnAdded.InvokeAsync(created);
+        }
+        else
+        {
+            var updated = new TickerItem
+            {
+                Id = editingId,
+                Text = trimmed,
+                OrderIndex = 0, // preserved by UpdateTickerItem
+                Kind = kindDraft,
+                ColorHint = hint,
+            };
+            visible = false;
+            await OnUpdated.InvokeAsync(updated);
+        }
+    }
+}
