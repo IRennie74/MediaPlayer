@@ -1,0 +1,19 @@
+@page "/admin/playlists"
+
+<PageTitle>Playlists · MediaPlayer</PageTitle>
+
+<AuthGuard>
+    <PageHeaderCard Title="Playlists">
+        <Action>
+            <Button Color="Color.Primary" Disabled>
+                <Icon Name="IconName.Add" /> New Playlist
+            </Button>
+        </Action>
+    </PageHeaderCard>
+
+    <ContentCard Title="All Playlists">
+        <Paragraph TextColor="TextColor.Muted" Margin="Margin.Is0">
+            Playlist editor arrives in Phase 5.
+        </Paragraph>
+    </ContentCard>
+</AuthGuard>

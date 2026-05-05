@@ -1,0 +1,66 @@
+@page "/admin/login"
+@layout DisplayLayout
+
+@inject IAuthGate AuthGate
+@inject NavigationManager Nav
+
+<PageTitle>Admin Sign In · MediaPlayer</PageTitle>
+
+<div class="d-flex justify-content-center align-items-center vh-100 bg-light">
+    <Card Style="min-width: 22rem;">
+        <CardHeader>
+            <CardTitle Size="5" Margin="Margin.Is0" TextAlignment="TextAlignment.Center">
+                <Icon Name="IconName.Lock" /> Admin Sign In
+            </CardTitle>
+        </CardHeader>
+        <CardBody>
+            @if (showError)
+            {
+                <Alert Color="Color.Danger" Visible Margin="Margin.Is3.FromBottom">
+                    <AlertDescription>Incorrect password.</AlertDescription>
+                </Alert>
+            }
+            <Field>
+                <FieldLabel>Password</FieldLabel>
+                <TextEdit Role="TextRole.Password"
+                          Placeholder="Password"
+                          @bind-Text="password"
+                          KeyPress="HandleKey" />
+                <FieldHelp>Default password: <Code>password</Code></FieldHelp>
+            </Field>
+            <div class="d-flex justify-content-end mt-3">
+                <Button Color="Color.Success" Clicked="SubmitAsync">
+                    <Icon Name="IconName.ArrowRight" /> Sign In
+                </Button>
+            </div>
+        </CardBody>
+    </Card>
+</div>
+
+@code {
+    private string password = string.Empty;
+    private bool showError;
+
+    private async Task SubmitAsync()
+    {
+        showError = false;
+        var ok = await AuthGate.TryLoginAsync(password);
+        if (ok)
+        {
+            Nav.NavigateTo("/admin");
+        }
+        else
+        {
+            showError = true;
+        }
+    }
+
+    // Submit on Enter so the operator never has to grab the mouse.
+    private async Task HandleKey(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            await SubmitAsync();
+        }
+    }
+}

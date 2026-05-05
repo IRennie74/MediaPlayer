@@ -1,0 +1,48 @@
+@*
+    Reusable "are you sure" delete dialog. Caller controls visibility and
+    receives a callback when the operator confirms.
+*@
+
+<Modal @bind-Visible="visible">
+    <ModalContent Centered>
+        <ModalHeader>
+            <ModalTitle><Icon Name="IconName.ExclamationTriangle" TextColor="TextColor.Danger" /> @Title</ModalTitle>
+            <CloseButton />
+        </ModalHeader>
+        <ModalBody>
+            <Paragraph>@Message</Paragraph>
+        </ModalBody>
+        <ModalFooter>
+            <Button Color="Color.Secondary" Clicked="HideAsync">Cancel</Button>
+            <Button Color="Color.Danger" Clicked="ConfirmAsync">
+                <Icon Name="IconName.Delete" /> Delete
+            </Button>
+        </ModalFooter>
+    </ModalContent>
+</Modal>
+
+@code {
+    private bool visible;
+
+    [Parameter] public string Title { get; set; } = "Confirm delete";
+    [Parameter] public string Message { get; set; } = "This cannot be undone.";
+    [Parameter] public EventCallback OnConfirmed { get; set; }
+
+    public Task ShowAsync()
+    {
+        visible = true;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task HideAsync()
+    {
+        visible = false;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ConfirmAsync()
+    {
+        visible = false;
+        await OnConfirmed.InvokeAsync();
+    }
+}

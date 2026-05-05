@@ -1,0 +1,38 @@
+@*
+    Reusable white panel — title on the left of the header, optional toolbar
+    slot on the right (often a maximize button), and the page's actual content
+    inside CardBody. Matches the cards in the reference screenshot.
+*@
+
+<Card Margin="Margin.Is3.FromBottom" Class="@(IsMaximized ? "w-100 vh-100 position-fixed top-0 start-0 m-0 rounded-0" : "")"
+      Style="@(IsMaximized ? "z-index: 1050;" : null)">
+    <CardHeader>
+        <div class="d-flex align-items-center justify-content-between">
+            <Heading Size="HeadingSize.Is6" Margin="Margin.Is0">@Title</Heading>
+            <div class="d-flex align-items-center gap-2">
+                @HeaderActions
+                @if (Maximizable)
+                {
+                    <Button Color="Color.Light" Size="Size.Small" Clicked="ToggleMaximize"
+                            Title="@(IsMaximized ? "Restore" : "Maximize")">
+                        <Icon Name="@(IsMaximized ? IconName.Compress : IconName.ExpandArrowsAlt)" />
+                    </Button>
+                }
+            </div>
+        </div>
+    </CardHeader>
+    <CardBody>
+        @ChildContent
+    </CardBody>
+</Card>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? HeaderActions { get; set; }
+    [Parameter] public bool Maximizable { get; set; } = true;
+
+    private bool IsMaximized { get; set; }
+
+    private void ToggleMaximize() => IsMaximized = !IsMaximized;
+}

@@ -1,0 +1,38 @@
+@*
+    Wrap admin page contents to redirect unauthenticated visitors to the
+    login page. Subscribes to IAuthGate.Changed so a logout in another
+    component (e.g. the top bar) immediately bounces the user.
+*@
+
+@implements IDisposable
+@inject IAuthGate AuthGate
+@inject NavigationManager Nav
+
+@if (AuthGate.IsAuthenticated)
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    protected override void OnInitialized()
+    {
+        AuthGate.Changed += HandleAuthChanged;
+        if (!AuthGate.IsAuthenticated)
+        {
+            Nav.NavigateTo("/admin/login", forceLoad: false);
+        }
+    }
+
+    private void HandleAuthChanged()
+    {
+        if (!AuthGate.IsAuthenticated)
+        {
+            Nav.NavigateTo("/admin/login", forceLoad: false);
+        }
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => AuthGate.Changed -= HandleAuthChanged;
+}

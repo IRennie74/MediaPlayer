@@ -1,0 +1,26 @@
+@page "/"
+@layout DisplayLayout
+
+@*
+    Public entry point — the kiosk URL. In Phase 7 this becomes the slideshow
+    host. For Phase 0 it just confirms the Blazorise wiring works end-to-end.
+*@
+
+<PageTitle>MediaPlayer</PageTitle>
+
+<div class="d-flex justify-content-center align-items-center vh-100">
+    <Card Style="min-width: 24rem;">
+        <CardHeader>
+            <CardTitle Size="5" Margin="Margin.Is0">MediaPlayer</CardTitle>
+        </CardHeader>
+        <CardBody>
+            <Paragraph>Phase 0 scaffold is live.</Paragraph>
+            <Paragraph TextColor="TextColor.Muted">
+                The kiosk display engine arrives in Phase 7.
+            </Paragraph>
+            <Button Color="Color.Primary" Type="ButtonType.Link" To="/admin/login">
+                <Icon Name="IconName.Lock" /> Admin
+            </Button>
+        </CardBody>
+    </Card>
+</div>

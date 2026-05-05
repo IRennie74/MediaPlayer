@@ -1,0 +1,35 @@
+@*
+    A single dashboard summary tile — large count + icon + label, color-coded.
+*@
+
+<Card Margin="Margin.Is3.FromBottom" Background="Background.White">
+    <CardBody>
+        <div class="d-flex align-items-center justify-content-between">
+            <div>
+                <div class="text-muted small text-uppercase">@Title</div>
+                <div class="display-6 fw-bold">@Count</div>
+            </div>
+            <div class="display-5 text-@ColorClass">
+                <Icon Name="@Icon" />
+            </div>
+        </div>
+    </CardBody>
+</Card>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] public int Count { get; set; }
+    [Parameter] public IconName Icon { get; set; } = IconName.Circle;
+    [Parameter] public Color Color { get; set; } = Color.Primary;
+
+    // Map Blazorise Color enum to a Bootstrap text-* utility class for the icon hue.
+    private string ColorClass => Color.Name switch
+    {
+        "primary" => "primary",
+        "info" => "info",
+        "success" => "success",
+        "warning" => "warning",
+        "danger" => "danger",
+        _ => "secondary",
+    };
+}

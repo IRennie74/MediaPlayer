@@ -1,0 +1,43 @@
+@page "/admin"
+
+@inject IRepository<MediaItem> MediaRepo
+@inject IRepository<Playlist> PlaylistRepo
+@inject IRepository<Location> LocationRepo
+@inject IRepository<Kiosk> KioskRepo
+
+<PageTitle>Dashboard · MediaPlayer</PageTitle>
+
+<AuthGuard>
+    <PageHeaderCard Title="Dashboard" />
+
+    <Row>
+        <Column ColumnSize="ColumnSize.Is3.OnDesktop.Is6.OnMobile">
+            <SummaryCard Title="Media items" Count="@mediaCount" Icon="IconName.Images" Color="Color.Primary" />
+        </Column>
+        <Column ColumnSize="ColumnSize.Is3.OnDesktop.Is6.OnMobile">
+            <SummaryCard Title="Playlists" Count="@playlistCount" Icon="IconName.List" Color="Color.Info" />
+        </Column>
+        <Column ColumnSize="ColumnSize.Is3.OnDesktop.Is6.OnMobile">
+            <SummaryCard Title="Locations" Count="@locationCount" Icon="IconName.MapMarkerAlt" Color="Color.Success" />
+        </Column>
+        <Column ColumnSize="ColumnSize.Is3.OnDesktop.Is6.OnMobile">
+            <SummaryCard Title="Kiosks" Count="@kioskCount" Icon="IconName.Tv" Color="Color.Warning" />
+        </Column>
+    </Row>
+</AuthGuard>
+
+@code {
+    private int mediaCount;
+    private int playlistCount;
+    private int locationCount;
+    private int kioskCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Tiny fan-out: each list is short and the IndexedDB layer is local.
+        mediaCount = (await MediaRepo.FindAllAsync()).Count;
+        playlistCount = (await PlaylistRepo.FindAllAsync()).Count;
+        locationCount = (await LocationRepo.FindAllAsync()).Count;
+        kioskCount = (await KioskRepo.FindAllAsync()).Count;
+    }
+}

@@ -1,0 +1,43 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{FEB0E9B8-1EB3-4EC5-B740-DE0324172BB3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MediaPlayer.Core", "src\MediaPlayer.Core\MediaPlayer.Core.csproj", "{DB125DD3-4497-4E9F-AF91-3C22DA055372}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MediaPlayer.Client", "src\MediaPlayer.Client\MediaPlayer.Client.csproj", "{C49399BB-4D33-47C3-A145-79FA70A50B07}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{8CC874EC-1E53-46B3-AB50-FF26373DF083}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MediaPlayer.Tests", "tests\MediaPlayer.Tests\MediaPlayer.Tests.csproj", "{2092F48F-BAB0-4751-89CC-62149E49BCB3}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{DB125DD3-4497-4E9F-AF91-3C22DA055372}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DB125DD3-4497-4E9F-AF91-3C22DA055372}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DB125DD3-4497-4E9F-AF91-3C22DA055372}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DB125DD3-4497-4E9F-AF91-3C22DA055372}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C49399BB-4D33-47C3-A145-79FA70A50B07}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C49399BB-4D33-47C3-A145-79FA70A50B07}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C49399BB-4D33-47C3-A145-79FA70A50B07}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C49399BB-4D33-47C3-A145-79FA70A50B07}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2092F48F-BAB0-4751-89CC-62149E49BCB3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2092F48F-BAB0-4751-89CC-62149E49BCB3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2092F48F-BAB0-4751-89CC-62149E49BCB3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2092F48F-BAB0-4751-89CC-62149E49BCB3}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{DB125DD3-4497-4E9F-AF91-3C22DA055372} = {FEB0E9B8-1EB3-4EC5-B740-DE0324172BB3}
+		{C49399BB-4D33-47C3-A145-79FA70A50B07} = {FEB0E9B8-1EB3-4EC5-B740-DE0324172BB3}
+		{2092F48F-BAB0-4751-89CC-62149E49BCB3} = {8CC874EC-1E53-46B3-AB50-FF26373DF083}
+	EndGlobalSection
+EndGlobal

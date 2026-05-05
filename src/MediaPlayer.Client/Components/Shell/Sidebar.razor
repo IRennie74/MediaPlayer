@@ -1,0 +1,95 @@
+@*
+    Collapsible left sidebar — search field at the top, then grouped
+    accordion menu items with leading icons. Search performs a
+    case-insensitive substring match against menu labels and hides
+    non-matching items (and groups whose children all hide).
+*@
+
+<div class="bg-white border-end" style="width: 260px; min-height: calc(100vh - 56px);">
+    <div class="p-3 border-bottom">
+        <Addons>
+            <Addon AddonType="AddonType.Start">
+                <AddonLabel><Icon Name="IconName.Search" /></AddonLabel>
+            </Addon>
+            <Addon AddonType="AddonType.Body">
+                <TextEdit Placeholder="Search menu items..." @bind-Text="searchTerm" />
+            </Addon>
+        </Addons>
+    </div>
+
+    <Bar Mode="BarMode.VerticalInline"
+         CollapseMode="BarCollapseMode.Hide"
+         ThemeContrast="ThemeContrast.Light"
+         Breakpoint="Breakpoint.Desktop">
+        <BarMenu>
+            <BarStart>
+                @foreach (var group in VisibleGroups)
+                {
+                    <BarDropdown @key="group.Label">
+                        <BarDropdownToggle>
+                            <BarIcon IconName="@group.Icon" />
+                            @group.Label
+                        </BarDropdownToggle>
+                        <BarDropdownMenu>
+                            @foreach (var item in group.VisibleItems)
+                            {
+                                <BarDropdownItem @key="item.Route" To="@item.Route">
+                                    <Icon Name="@item.Icon" /> @item.Label
+                                </BarDropdownItem>
+                            }
+                        </BarDropdownMenu>
+                    </BarDropdown>
+                }
+            </BarStart>
+        </BarMenu>
+    </Bar>
+</div>
+
+@code {
+    private string searchTerm = string.Empty;
+
+    private record MenuItem(string Label, string Route, IconName Icon);
+    private sealed record MenuGroup(string Label, IconName Icon, IReadOnlyList<MenuItem> Items)
+    {
+        public IEnumerable<MenuItem> VisibleItems => Items;
+    }
+
+    private static readonly IReadOnlyList<MenuGroup> AllGroups = new MenuGroup[]
+    {
+        new("Overview", IconName.Dashboard, new MenuItem[]
+        {
+            new("Dashboard", "/admin", IconName.Dashboard),
+        }),
+        new("Content", IconName.Image, new MenuItem[]
+        {
+            new("Playlists", "/admin/playlists", IconName.List),
+            new("Media Library", "/admin/media", IconName.Images),
+        }),
+        new("Operations", IconName.Building, new MenuItem[]
+        {
+            new("Locations", "/admin/locations", IconName.MapMarkerAlt),
+            new("Kiosks", "/admin/kiosks", IconName.Tv),
+        }),
+    };
+
+    private IEnumerable<MenuGroup> VisibleGroups
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(searchTerm))
+            {
+                return AllGroups;
+            }
+
+            return AllGroups
+                .Select(g => g with
+                {
+                    Items = g.Items
+                        .Where(i => i.Label.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+                        .ToArray()
+                })
+                .Where(g => g.Items.Count > 0)
+                .ToArray();
+        }
+    }
+}

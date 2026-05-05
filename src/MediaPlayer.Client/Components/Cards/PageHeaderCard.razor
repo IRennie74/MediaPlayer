@@ -1,0 +1,20 @@
+@*
+    Slim page-header strip styled as a Card. Title centered, optional
+    primary action on the right (matching the reference's "Equipment Sign Out"
+    title with the "Work Instruction" button).
+*@
+
+<Card Margin="Margin.Is3.FromBottom">
+    <CardBody Padding="Padding.Is3">
+        <div class="d-flex align-items-center justify-content-between">
+            <div class="invisible">@Action</div>
+            <Heading Size="HeadingSize.Is5" Margin="Margin.Is0">@Title</Heading>
+            <div>@Action</div>
+        </div>
+    </CardBody>
+</Card>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] public RenderFragment? Action { get; set; }
+}

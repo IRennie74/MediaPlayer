@@ -1,0 +1,290 @@
+@*
+    Three-tab "Add Media" dialog: Image upload, Video upload, Website iframe.
+    Validation lives in MediaImportRules so it is unit-tested without UI.
+    On save, a new MediaItem is persisted and OnMediaAdded is raised so the
+    parent page can refresh its list.
+*@
+
+@using System.IO
+@using MediaPlayer.Core.Services
+@inject IRepository<MediaItem> MediaRepo
+@inject IMediaBlobStore BlobStore
+
+<Modal @bind-Visible="visible">
+    <ModalContent Centered Size="ModalSize.Large">
+        <ModalHeader>
+            <ModalTitle><Icon Name="IconName.Add" /> Add Media</ModalTitle>
+            <CloseButton />
+        </ModalHeader>
+        <ModalBody>
+            <Tabs SelectedTab="@activeTab" SelectedTabChanged="@(t => { activeTab = t; ResetForm(); })">
+                <Items>
+                    <Tab Name="image"><Icon Name="IconName.Image" /> Image</Tab>
+                    <Tab Name="video"><Icon Name="IconName.Video" /> Video</Tab>
+                    <Tab Name="iframe"><Icon Name="IconName.Globe" /> Website</Tab>
+                </Items>
+                <Content>
+                    <TabPanel Name="image">
+                        @SharedNameField
+                        @SharedTagsField
+                        @SharedDurationField
+                        <Field>
+                            <FieldLabel>Image file (PNG / JPEG / WebP / GIF)</FieldLabel>
+                            <FileEdit Filter="image/*" Changed="HandleImageSelected" />
+                        </Field>
+                    </TabPanel>
+                    <TabPanel Name="video">
+                        @SharedNameField
+                        @SharedTagsField
+                        @SharedDurationField
+                        <Field>
+                            <FieldLabel>Video file (MP4 / WebM / Ogg)</FieldLabel>
+                            <FileEdit Filter="video/*" Changed="HandleVideoSelected" />
+                        </Field>
+                    </TabPanel>
+                    <TabPanel Name="iframe">
+                        @SharedNameField
+                        <Field>
+                            <FieldLabel>Website URL</FieldLabel>
+                            <TextEdit @bind-Text="url" Placeholder="https://example.com" />
+                            <FieldHelp>Many sites refuse embedding via X-Frame-Options. Use Test Embed to check.</FieldHelp>
+                        </Field>
+                        @SharedTagsField
+                        @SharedDurationField
+                        <div class="d-flex gap-2 mb-2">
+                            <Button Color="Color.Info" Clicked="ToggleEmbedPreview" Disabled="string.IsNullOrWhiteSpace(url)">
+                                <Icon Name="@(showEmbedPreview ? IconName.EyeSlash : IconName.Eye)" />
+                                @(showEmbedPreview ? "Hide preview" : "Test embed")
+                            </Button>
+                        </div>
+                        @if (showEmbedPreview && !string.IsNullOrWhiteSpace(url))
+                        {
+                            <div class="border rounded">
+                                <iframe src="@url"
+                                        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+                                        style="width:100%;height:240px;border:0;"></iframe>
+                            </div>
+                        }
+                    </TabPanel>
+                </Content>
+            </Tabs>
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <Alert Color="Color.Danger" Visible Margin="Margin.Is3.FromTop">
+                    <AlertDescription>@errorMessage</AlertDescription>
+                </Alert>
+            }
+            @if (!string.IsNullOrEmpty(warningMessage))
+            {
+                <Alert Color="Color.Warning" Visible Margin="Margin.Is3.FromTop">
+                    <AlertDescription>@warningMessage</AlertDescription>
+                </Alert>
+            }
+        </ModalBody>
+        <ModalFooter>
+            <Button Color="Color.Secondary" Clicked="HideAsync" Disabled="busy">Cancel</Button>
+            <Button Color="Color.Success" Clicked="SaveAsync" Disabled="!CanSave || busy">
+                @(busy ? "Saving..." : "Save")
+            </Button>
+        </ModalFooter>
+    </ModalContent>
+</Modal>
+
+@code {
+    private bool visible;
+    private bool busy;
+    private string activeTab = "image";
+
+    private string name = string.Empty;
+    private string url = string.Empty;
+    private string tagsText = string.Empty;
+    private int durationSeconds = 10;
+    private bool showEmbedPreview;
+
+    private byte[]? pendingBytes;
+    private string pendingMime = string.Empty;
+    private long pendingSize;
+
+    private string? errorMessage;
+    private string? warningMessage;
+
+    [Parameter] public EventCallback OnMediaAdded { get; set; }
+
+    public Task ShowAsync()
+    {
+        ResetForm();
+        visible = true;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task HideAsync()
+    {
+        visible = false;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private void ResetForm()
+    {
+        name = string.Empty;
+        url = string.Empty;
+        tagsText = string.Empty;
+        durationSeconds = 10;
+        pendingBytes = null;
+        pendingMime = string.Empty;
+        pendingSize = 0;
+        errorMessage = null;
+        warningMessage = null;
+        showEmbedPreview = false;
+    }
+
+    private bool CanSave => activeTab switch
+    {
+        "iframe" => !string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(url),
+        _ => !string.IsNullOrWhiteSpace(name) && pendingBytes is { Length: > 0 },
+    };
+
+    private async Task HandleImageSelected(FileChangedEventArgs e) =>
+        await ReadSelectedFileAsync(e, video: false);
+
+    private async Task HandleVideoSelected(FileChangedEventArgs e) =>
+        await ReadSelectedFileAsync(e, video: true);
+
+    private async Task ReadSelectedFileAsync(FileChangedEventArgs e, bool video)
+    {
+        errorMessage = null;
+        warningMessage = null;
+        var file = e.Files.FirstOrDefault();
+        if (file is null)
+        {
+            return;
+        }
+
+        try
+        {
+            using var stream = file.OpenReadStream(MediaImportRules.HardMaxFileBytes);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            pendingBytes = ms.ToArray();
+            pendingSize = pendingBytes.Length;
+            pendingMime = file.Type;
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                name = Path.GetFileNameWithoutExtension(file.Name);
+            }
+
+            var validation = MediaImportRules.ValidateUpload(name, pendingSize, pendingMime, video);
+            if (!validation.IsValid)
+            {
+                errorMessage = validation.Error;
+                pendingBytes = null;
+            }
+            else if (!string.IsNullOrEmpty(validation.Warning))
+            {
+                warningMessage = validation.Warning;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+            pendingBytes = null;
+        }
+    }
+
+    private void ToggleEmbedPreview() => showEmbedPreview = !showEmbedPreview;
+
+    private async Task SaveAsync()
+    {
+        errorMessage = null;
+        busy = true;
+        try
+        {
+            var item = activeTab switch
+            {
+                "iframe" => await SaveIframeAsync(),
+                "video" => await SaveBlobAsync(MediaKind.Video),
+                _ => await SaveBlobAsync(MediaKind.Image),
+            };
+            if (item is null)
+            {
+                return;
+            }
+            visible = false;
+            await OnMediaAdded.InvokeAsync();
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task<MediaItem?> SaveIframeAsync()
+    {
+        var validation = MediaImportRules.ValidateIframeUrl(name, url);
+        if (!validation.IsValid)
+        {
+            errorMessage = validation.Error;
+            return null;
+        }
+
+        var item = new MediaItem
+        {
+            Id = Guid.NewGuid(),
+            Name = name.Trim(),
+            Kind = MediaKind.Iframe,
+            Url = url.Trim(),
+            Tags = ParseTags(),
+            DefaultDurationSeconds = Math.Max(1, durationSeconds),
+        };
+        await MediaRepo.CreateAsync(item);
+        return item;
+    }
+
+    private async Task<MediaItem?> SaveBlobAsync(MediaKind kind)
+    {
+        if (pendingBytes is null)
+        {
+            errorMessage = "No file selected.";
+            return null;
+        }
+
+        var blobKey = Guid.NewGuid().ToString();
+        await BlobStore.SaveAsync(blobKey, pendingBytes, pendingMime);
+
+        var item = new MediaItem
+        {
+            Id = Guid.NewGuid(),
+            Name = name.Trim(),
+            Kind = kind,
+            BlobKey = blobKey,
+            FileSizeBytes = pendingSize,
+            MimeType = pendingMime,
+            Tags = ParseTags(),
+            DefaultDurationSeconds = Math.Max(1, durationSeconds),
+        };
+        await MediaRepo.CreateAsync(item);
+        return item;
+    }
+
+    private IReadOnlyList<string> ParseTags() =>
+        tagsText.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(t => t.ToLowerInvariant())
+                .Distinct()
+                .ToArray();
+
+    private RenderFragment SharedNameField => @<Field>
+        <FieldLabel>Name</FieldLabel>
+        <TextEdit @bind-Text="name" Placeholder="Display name" />
+    </Field>;
+
+    private RenderFragment SharedTagsField => @<Field>
+        <FieldLabel>Tags <small class="text-muted">(comma-separated, optional)</small></FieldLabel>
+        <TextEdit @bind-Text="tagsText" Placeholder="lobby, promo" />
+    </Field>;
+
+    private RenderFragment SharedDurationField => @<Field>
+        <FieldLabel>Default duration (seconds)</FieldLabel>
+        <NumericEdit TValue="int" @bind-Value="durationSeconds" Min="1" Max="3600" />
+        <FieldHelp>Per-playlist duration overrides this when the item is added to a playlist.</FieldHelp>
+    </Field>;
+}

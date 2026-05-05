@@ -1,0 +1,165 @@
+@page "/admin/media"
+
+@inject IRepository<MediaItem> MediaRepo
+@inject IMediaBlobStore BlobStore
+
+<PageTitle>Media Library · MediaPlayer</PageTitle>
+
+<AuthGuard>
+    <PageHeaderCard Title="Media Library">
+        <Action>
+            <Button Color="Color.Primary" Clicked="OpenAddModalAsync">
+                <Icon Name="IconName.Add" /> Add Media
+            </Button>
+        </Action>
+    </PageHeaderCard>
+
+    <ContentCard Title="@($"All Media ({Filtered.Count})")">
+        <HeaderActions>
+            <div style="width: 280px;">
+                <TextEdit Placeholder="Search by name or tag..." @bind-Text="searchTerm" />
+            </div>
+        </HeaderActions>
+        <ChildContent>
+            @if (loading)
+            {
+                <Paragraph TextColor="TextColor.Muted">Loading...</Paragraph>
+            }
+            else if (Filtered.Count == 0)
+            {
+                <Paragraph TextColor="TextColor.Muted">
+                    No media matches your search. Click <strong>Add Media</strong> to create some.
+                </Paragraph>
+            }
+            else
+            {
+                <Table Striped Hoverable>
+                    <TableHeader ThemeContrast="ThemeContrast.Light">
+                        <TableRow>
+                            <TableHeaderCell>Name</TableHeaderCell>
+                            <TableHeaderCell>Kind</TableHeaderCell>
+                            <TableHeaderCell>Tags</TableHeaderCell>
+                            <TableHeaderCell>Default duration</TableHeaderCell>
+                            <TableHeaderCell>Size</TableHeaderCell>
+                            <TableHeaderCell Class="text-end">Actions</TableHeaderCell>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        @foreach (var item in Filtered)
+                        {
+                            <TableRow @key="item.Id">
+                                <TableRowCell>@item.Name</TableRowCell>
+                                <TableRowCell>
+                                    <Badge Color="@KindColor(item.Kind)">@item.Kind</Badge>
+                                </TableRowCell>
+                                <TableRowCell>
+                                    @foreach (var tag in item.Tags)
+                                    {
+                                        <Badge Color="Color.Light" Margin="Margin.Is1.FromEnd">@tag</Badge>
+                                    }
+                                </TableRowCell>
+                                <TableRowCell>@item.DefaultDurationSeconds s</TableRowCell>
+                                <TableRowCell>@FormatSize(item.FileSizeBytes)</TableRowCell>
+                                <TableRowCell Class="text-end">
+                                    @if (item.Kind == MediaKind.Iframe && !string.IsNullOrEmpty(item.Url))
+                                    {
+                                        <Button Color="Color.Light" Size="Size.Small" Margin="Margin.Is1.FromEnd"
+                                                Type="ButtonType.Link" To="@item.Url" Target="Target.Blank"
+                                                Title="Open URL">
+                                            <Icon Name="IconName.ExternalLinkSquareAlt" />
+                                        </Button>
+                                    }
+                                    <Button Color="Color.Danger" Size="Size.Small" Clicked="@(() => RequestDelete(item))">
+                                        <Icon Name="IconName.Delete" />
+                                    </Button>
+                                </TableRowCell>
+                            </TableRow>
+                        }
+                    </TableBody>
+                </Table>
+            }
+        </ChildContent>
+    </ContentCard>
+
+    <AddMediaModal @ref="addModal" OnMediaAdded="ReloadAsync" />
+    <ConfirmDeleteModal @ref="deleteModal" Title="Delete media item"
+                        Message="@deleteMessage"
+                        OnConfirmed="ConfirmDeleteAsync" />
+</AuthGuard>
+
+@code {
+    private bool loading = true;
+    private List<MediaItem> all = new();
+    private string searchTerm = string.Empty;
+
+    private AddMediaModal? addModal;
+    private ConfirmDeleteModal? deleteModal;
+    private MediaItem? pendingDelete;
+    private string deleteMessage = string.Empty;
+
+    private IReadOnlyList<MediaItem> Filtered
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(searchTerm))
+            {
+                return all;
+            }
+            var term = searchTerm.Trim();
+            return all
+                .Where(m => m.Name.Contains(term, StringComparison.OrdinalIgnoreCase)
+                         || m.Tags.Any(t => t.Contains(term, StringComparison.OrdinalIgnoreCase)))
+                .ToArray();
+        }
+    }
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        loading = true;
+        var rows = await MediaRepo.FindAllAsync();
+        all = rows.OrderByDescending(r => r.CreatedAt).ToList();
+        loading = false;
+    }
+
+    private Task OpenAddModalAsync() => addModal?.ShowAsync() ?? Task.CompletedTask;
+
+    private Task RequestDelete(MediaItem item)
+    {
+        pendingDelete = item;
+        deleteMessage = $"Delete \"{item.Name}\"? Any playlist that references it will skip this slide.";
+        return deleteModal?.ShowAsync() ?? Task.CompletedTask;
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (pendingDelete is null)
+        {
+            return;
+        }
+        if (!string.IsNullOrEmpty(pendingDelete.BlobKey))
+        {
+            await BlobStore.DeleteAsync(pendingDelete.BlobKey);
+        }
+        await MediaRepo.DeleteAsync(pendingDelete.Id);
+        pendingDelete = null;
+        await ReloadAsync();
+    }
+
+    private static Color KindColor(MediaKind kind) => kind switch
+    {
+        MediaKind.Image => Color.Info,
+        MediaKind.Video => Color.Warning,
+        MediaKind.Iframe => Color.Success,
+        _ => Color.Secondary,
+    };
+
+    private static string FormatSize(long? bytes) => bytes switch
+    {
+        null => "-",
+        < 1024 => $"{bytes} B",
+        < 1024 * 1024 => $"{bytes / 1024} KB",
+        _ => $"{bytes / 1024 / 1024} MB",
+    };
+}

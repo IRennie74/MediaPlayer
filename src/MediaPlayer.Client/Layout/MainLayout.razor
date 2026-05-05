@@ -1,0 +1,22 @@
+@inherits LayoutComponentBase
+@using MediaPlayer.Client.Components.Shell
+
+@*
+    Admin shell — dark navy top bar across the top, collapsible left
+    sidebar, and a light-gray content area on the right that scrolls
+    independently. Visual cue mapping (per the reference screenshot):
+
+      • dark navy top bar  → <TopBar />          (Background.Primary, dark contrast)
+      • collapsible sidebar → <Sidebar />        (white, border-right)
+      • white content cards → page-level <Card>s placed inside @Body
+*@
+
+<div class="d-flex flex-column min-vh-100">
+    <TopBar />
+    <div class="d-flex flex-grow-1">
+        <Sidebar />
+        <main class="flex-grow-1 bg-light p-3 overflow-auto">
+            @Body
+        </main>
+    </div>
+</div>
