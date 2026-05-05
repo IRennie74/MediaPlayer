@@ -31,6 +31,14 @@
                         <Field>
                             <FieldLabel>Image file (PNG / JPEG / WebP / GIF)</FieldLabel>
                             <FileEdit Filter="image/*" Changed="HandleImageSelected" />
+                            @if (pendingBytes is { Length: > 0 })
+                            {
+                                <FieldHelp>
+                                    <span class="text-success fw-semibold">
+                                        <Icon Name="IconName.Check" /> Loaded: @pendingFileName · @FormatSize(pendingSize)
+                                    </span>
+                                </FieldHelp>
+                            }
                         </Field>
                     </TabPanel>
                     <TabPanel Name="video">
@@ -40,6 +48,14 @@
                         <Field>
                             <FieldLabel>Video file (MP4 / WebM / Ogg)</FieldLabel>
                             <FileEdit Filter="video/*" Changed="HandleVideoSelected" />
+                            @if (pendingBytes is { Length: > 0 })
+                            {
+                                <FieldHelp>
+                                    <span class="text-success fw-semibold">
+                                        <Icon Name="IconName.Check" /> Loaded: @pendingFileName · @FormatSize(pendingSize)
+                                    </span>
+                                </FieldHelp>
+                            }
                         </Field>
                     </TabPanel>
                     <TabPanel Name="iframe">
@@ -104,6 +120,7 @@
 
     private byte[]? pendingBytes;
     private string pendingMime = string.Empty;
+    private string pendingFileName = string.Empty;
     private long pendingSize;
 
     private string? errorMessage;
@@ -132,6 +149,7 @@
         durationSeconds = 10;
         pendingBytes = null;
         pendingMime = string.Empty;
+        pendingFileName = string.Empty;
         pendingSize = 0;
         errorMessage = null;
         warningMessage = null;
@@ -168,6 +186,7 @@
             pendingBytes = ms.ToArray();
             pendingSize = pendingBytes.Length;
             pendingMime = file.Type;
+            pendingFileName = file.Name;
             if (string.IsNullOrWhiteSpace(name))
             {
                 name = Path.GetFileNameWithoutExtension(file.Name);
@@ -287,4 +306,11 @@
         <NumericEdit TValue="int" @bind-Value="durationSeconds" Min="1" Max="3600" />
         <FieldHelp>Per-playlist duration overrides this when the item is added to a playlist.</FieldHelp>
     </Field>;
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes / 1024.0 / 1024.0:F1} MB";
+    }
 }

@@ -12,18 +12,30 @@
 @inject BackupService Backup
 @inject IndexedDbInterop Interop
 
-<ContentCard Title="Backup" Maximizable="false">
+<ContentCard Title="Backup &amp; Sync" Maximizable="false">
     <Paragraph TextColor="TextColor.Muted">
-        Export this browser's entire library, playlists, locations and kiosks to a JSON file
-        you can import on another kiosk machine. Media blobs are included as base64.
+        Sync data between kiosks: export this browser's full database to a JSON file,
+        then import it on another kiosk. Media blobs are included.
+        <br />
+        <em class="small">Not a media uploader — to add a photo or video, use Media Library &rsaquo; Add Media.</em>
     </Paragraph>
 
-    <div class="d-flex gap-2 mb-3">
-        <Button Color="Color.Primary" Clicked="ExportAsync" Disabled="busy">
-            <Icon Name="IconName.Download" /> Export to file
-        </Button>
-        <FileEdit Filter=".json,application/json" Changed="HandleImportSelected" Disabled="busy" />
-    </div>
+    <Row Margin="Margin.Is3.FromTop">
+        <Column ColumnSize="ColumnSize.Is6">
+            <Field>
+                <FieldLabel>Export current data</FieldLabel>
+                <Button Color="Color.Primary" Clicked="ExportAsync" Disabled="busy">
+                    <Icon Name="IconName.Download" /> Export to file
+                </Button>
+            </Field>
+        </Column>
+        <Column ColumnSize="ColumnSize.Is6">
+            <Field>
+                <FieldLabel>Import a previously-exported JSON file</FieldLabel>
+                <FileEdit Filter=".json,application/json" Changed="HandleImportSelected" Disabled="busy" />
+            </Field>
+        </Column>
+    </Row>
 
     @if (!string.IsNullOrEmpty(message))
     {

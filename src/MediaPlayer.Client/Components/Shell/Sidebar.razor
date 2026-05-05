@@ -1,52 +1,57 @@
 @*
-    Collapsible left sidebar — search field at the top, then grouped
-    accordion menu items with leading icons. Search performs a
-    case-insensitive substring match against menu labels and hides
-    non-matching items (and groups whose children all hide).
+    Static accordion-style sidebar — group headings stay visible, items are
+    direct nav-links underneath (no click-to-expand dropdowns). The active
+    route gets a solid blue background via Bootstrap's list-group `active`
+    state. Search filters items in place.
 *@
 
-<div class="bg-white border-end" style="width: 260px; min-height: calc(100vh - 56px);">
+<aside class="bg-white border-end flex-shrink-0" style="width: 260px;">
     <div class="p-3 border-bottom">
-        <Addons>
-            <Addon AddonType="AddonType.Start">
-                <AddonLabel><Icon Name="IconName.Search" /></AddonLabel>
-            </Addon>
-            <Addon AddonType="AddonType.Body">
-                <TextEdit Placeholder="Search menu items..." @bind-Text="searchTerm" />
-            </Addon>
-        </Addons>
+        <div class="input-group input-group-sm">
+            <span class="input-group-text bg-white border-end-0 text-muted">
+                <Icon Name="IconName.Search" />
+            </span>
+            <input class="form-control border-start-0 ps-0"
+                   placeholder="Search menu..."
+                   value="@searchTerm"
+                   @oninput="HandleSearch" />
+        </div>
     </div>
 
-    <Bar Mode="BarMode.VerticalInline"
-         CollapseMode="BarCollapseMode.Hide"
-         ThemeContrast="ThemeContrast.Light"
-         Breakpoint="Breakpoint.Desktop">
-        <BarMenu>
-            <BarStart>
-                @foreach (var group in VisibleGroups)
+    <nav class="py-1">
+        @foreach (var group in VisibleGroups)
+        {
+            <div class="px-3 pt-3 pb-1 small fw-semibold text-uppercase text-muted">
+                <Icon Name="@group.Icon" Margin="Margin.Is2.FromEnd" />@group.Label
+            </div>
+            <div class="list-group list-group-flush">
+                @foreach (var item in group.VisibleItems)
                 {
-                    <BarDropdown @key="group.Label">
-                        <BarDropdownToggle>
-                            <BarIcon IconName="@group.Icon" />
-                            @group.Label
-                        </BarDropdownToggle>
-                        <BarDropdownMenu>
-                            @foreach (var item in group.VisibleItems)
-                            {
-                                <BarDropdownItem @key="item.Route" To="@item.Route">
-                                    <Icon Name="@item.Icon" /> @item.Label
-                                </BarDropdownItem>
-                            }
-                        </BarDropdownMenu>
-                    </BarDropdown>
+                    <NavLink @key="item.Route"
+                             href="@item.Route"
+                             Match="@(item.Route == "/admin" ? NavLinkMatch.All : NavLinkMatch.Prefix)"
+                             class="list-group-item list-group-item-action border-0 d-flex align-items-center px-4 py-2 text-decoration-none"
+                             ActiveClass="active">
+                        <Icon Name="@item.Icon" Margin="Margin.Is2.FromEnd" />
+                        @item.Label
+                    </NavLink>
                 }
-            </BarStart>
-        </BarMenu>
-    </Bar>
-</div>
+            </div>
+        }
+        @if (!VisibleGroups.Any())
+        {
+            <div class="text-muted small px-3 py-3">No menu items match.</div>
+        }
+    </nav>
+</aside>
 
 @code {
     private string searchTerm = string.Empty;
+
+    private void HandleSearch(ChangeEventArgs e)
+    {
+        searchTerm = e.Value?.ToString() ?? string.Empty;
+    }
 
     private record MenuItem(string Label, string Route, IconName Icon);
     private sealed record MenuGroup(string Label, IconName Icon, IReadOnlyList<MenuItem> Items)
@@ -80,7 +85,6 @@
             {
                 return AllGroups;
             }
-
             return AllGroups
                 .Select(g => g with
                 {

@@ -1,57 +1,43 @@
 @*
-    Dark navy top app bar — brand on the left, action chips on the right.
-    Mirrors the layout of the user-supplied reference screenshot.
+    Compact dark-navy app bar — brand on the left, action chips on the right.
+    Implemented with Bootstrap 5 navbar classes directly so the brand is
+    always visible (Blazorise's <Bar> hides BarBrand under some breakpoints).
 *@
 
 @inject IAuthGate AuthGate
 @inject NavigationManager Nav
 
-<Bar Background="Background.Primary"
-     ThemeContrast="ThemeContrast.Dark"
-     Mode="BarMode.Horizontal"
-     Breakpoint="Breakpoint.Desktop">
-    <BarBrand>
-        <BarItem>
-            <BarLink To="/admin">
-                <BarIcon IconName="IconName.Tv" />
-                <strong class="ms-1">MediaPlayer</strong>
-            </BarLink>
-        </BarItem>
-    </BarBrand>
-    <BarMenu>
-        <BarStart></BarStart>
-        <BarEnd>
-            <BarItem>
-                <BarLink Clicked="OpenDisplayInNewTab" Title="Open kiosk display">
-                    <BarIcon IconName="IconName.Desktop" />
-                </BarLink>
-            </BarItem>
-            <BarItem>
-                <BarLink Title="Notifications (placeholder)">
-                    <BarIcon IconName="IconName.Bell" />
-                </BarLink>
-            </BarItem>
-            <BarItem>
-                <BarDropdown>
-                    <BarDropdownToggle>
-                        <BarIcon IconName="IconName.User" />
-                        <span class="ms-1">Admin</span>
-                    </BarDropdownToggle>
-                    <BarDropdownMenu>
-                        <BarDropdownItem Clicked="LogoutAsync">
-                            <Icon Name="IconName.Unlock" /> Sign Out
-                        </BarDropdownItem>
-                    </BarDropdownMenu>
-                </BarDropdown>
-            </BarItem>
-        </BarEnd>
-    </BarMenu>
-</Bar>
+<nav class="navbar navbar-dark bg-primary px-3 py-2 shadow-sm" style="min-height: 56px;">
+    <div class="container-fluid p-0">
+        <a class="navbar-brand d-flex align-items-center fw-bold mb-0 text-white" href="/admin">
+            <Icon Name="IconName.Tv" />
+            <span class="ms-2">MediaPlayer</span>
+        </a>
+        <div class="d-flex align-items-center gap-2">
+            <a class="btn btn-sm btn-outline-light d-inline-flex align-items-center"
+               href="/" target="_blank" title="Open kiosk display in a new tab">
+                <Icon Name="IconName.Desktop" />
+                <span class="ms-2 d-none d-md-inline">Open Display</span>
+            </a>
+            <button type="button" class="btn btn-sm btn-outline-light" title="Notifications (placeholder)">
+                <Icon Name="IconName.Bell" />
+            </button>
+            <Dropdown>
+                <DropdownToggle Color="Color.Light" Size="Size.Small">
+                    <Icon Name="IconName.User" />
+                    <span class="ms-1">Admin</span>
+                </DropdownToggle>
+                <DropdownMenu>
+                    <DropdownItem Clicked="LogoutAsync">
+                        <Icon Name="IconName.Unlock" /> Sign Out
+                    </DropdownItem>
+                </DropdownMenu>
+            </Dropdown>
+        </div>
+    </div>
+</nav>
 
 @code {
-    private void OpenDisplayInNewTab()
-        => Nav.NavigateTo("/", forceLoad: true);
-
     private async Task LogoutAsync()
     {
         await AuthGate.LogoutAsync();
