@@ -16,5 +16,8 @@ public interface IMediaBlobStore
     /// </summary>
     Task<string?> GetObjectUrlAsync(string blobKey, CancellationToken cancellationToken = default);
 
+    /// <summary>Returns the raw bytes for export, or null if the blob is missing.</summary>
+    Task<byte[]?> GetBytesAsync(string blobKey, CancellationToken cancellationToken = default);
+
     Task DeleteAsync(string blobKey, CancellationToken cancellationToken = default);
 }

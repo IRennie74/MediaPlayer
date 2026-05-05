@@ -1,0 +1,99 @@
+@*
+    Read-only media library inside a modal. Operator selects one media item;
+    OnPicked is fired with its Id and the modal closes.
+*@
+
+@inject IRepository<MediaItem> MediaRepo
+
+<Modal @bind-Visible="visible">
+    <ModalContent Centered Size="ModalSize.Large">
+        <ModalHeader>
+            <ModalTitle><Icon Name="IconName.Search" /> Pick media</ModalTitle>
+            <CloseButton />
+        </ModalHeader>
+        <ModalBody>
+            <Field>
+                <TextEdit Placeholder="Search by name or tag..." @bind-Text="searchTerm" />
+            </Field>
+            @if (loading)
+            {
+                <Paragraph TextColor="TextColor.Muted">Loading...</Paragraph>
+            }
+            else if (Filtered.Count == 0)
+            {
+                <Paragraph TextColor="TextColor.Muted">No media matches.</Paragraph>
+            }
+            else
+            {
+                <Table Hoverable Striped>
+                    <TableHeader ThemeContrast="ThemeContrast.Light">
+                        <TableRow>
+                            <TableHeaderCell>Name</TableHeaderCell>
+                            <TableHeaderCell>Kind</TableHeaderCell>
+                            <TableHeaderCell>Tags</TableHeaderCell>
+                            <TableHeaderCell></TableHeaderCell>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        @foreach (var item in Filtered)
+                        {
+                            <TableRow @key="item.Id">
+                                <TableRowCell>@item.Name</TableRowCell>
+                                <TableRowCell><Badge Color="Color.Light">@item.Kind</Badge></TableRowCell>
+                                <TableRowCell>@string.Join(", ", item.Tags)</TableRowCell>
+                                <TableRowCell Class="text-end">
+                                    <Button Color="Color.Success" Size="Size.Small" Clicked="@(() => Pick(item))">
+                                        <Icon Name="IconName.Add" /> Add
+                                    </Button>
+                                </TableRowCell>
+                            </TableRow>
+                        }
+                    </TableBody>
+                </Table>
+            }
+        </ModalBody>
+        <ModalFooter>
+            <Button Color="Color.Secondary" Clicked="HideAsync">Close</Button>
+        </ModalFooter>
+    </ModalContent>
+</Modal>
+
+@code {
+    private bool visible;
+    private bool loading;
+    private string searchTerm = string.Empty;
+    private List<MediaItem> all = new();
+
+    [Parameter] public EventCallback<Guid> OnPicked { get; set; }
+
+    private IReadOnlyList<MediaItem> Filtered =>
+        string.IsNullOrWhiteSpace(searchTerm)
+            ? all
+            : all.Where(m => m.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)
+                          || m.Tags.Any(t => t.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)))
+                 .ToArray();
+
+    public async Task ShowAsync()
+    {
+        visible = true;
+        loading = true;
+        searchTerm = string.Empty;
+        StateHasChanged();
+        var rows = await MediaRepo.FindAllAsync();
+        all = rows.OrderBy(r => r.Name).ToList();
+        loading = false;
+        StateHasChanged();
+    }
+
+    private Task HideAsync()
+    {
+        visible = false;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private async Task Pick(MediaItem item)
+    {
+        visible = false;
+        await OnPicked.InvokeAsync(item.Id);
+    }
+}

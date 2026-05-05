@@ -24,6 +24,8 @@
             <SummaryCard Title="Kiosks" Count="@kioskCount" Icon="IconName.Tv" Color="Color.Warning" />
         </Column>
     </Row>
+
+    <ExportImportCard OnImported="ReloadCountsAsync" />
 </AuthGuard>
 
 @code {
@@ -32,9 +34,10 @@
     private int locationCount;
     private int kioskCount;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnInitializedAsync() => await ReloadCountsAsync();
+
+    private async Task ReloadCountsAsync()
     {
-        // Tiny fan-out: each list is short and the IndexedDB layer is local.
         mediaCount = (await MediaRepo.FindAllAsync()).Count;
         playlistCount = (await PlaylistRepo.FindAllAsync()).Count;
         locationCount = (await LocationRepo.FindAllAsync()).Count;

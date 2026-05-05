@@ -1,0 +1,57 @@
+@*
+    Renders an uploaded video. Honors per-item playback options (muted, loop,
+    volume, start time) and the chosen fit mode. `muted + playsinline +
+    autoplay` are required to satisfy browser autoplay policies on most kiosks.
+*@
+
+@inject IMediaBlobStore BlobStore
+
+<div class="w-100 h-100 d-flex align-items-center justify-content-center bg-black">
+    @if (objectUrl is not null)
+    {
+        <video src="@objectUrl"
+               autoplay
+               muted="@Item.VideoMuted"
+               loop="@Item.VideoLoop"
+               playsinline
+               style="@($"width: 100%; height: 100%; object-fit: {FitCss};")"
+               @ref="videoEl"
+               @onloadedmetadata="OnLoadedMetadataAsync">
+        </video>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public MediaItem Media { get; set; } = default!;
+    [Parameter, EditorRequired] public PlaylistItem Item { get; set; } = default!;
+
+    private string? objectUrl;
+    private ElementReference videoEl;
+
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
+    private string FitCss => Item.Fit switch
+    {
+        FitMode.Cover => "cover",
+        FitMode.Fill => "fill",
+        _ => "contain",
+    };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrEmpty(Media.BlobKey))
+        {
+            objectUrl = await BlobStore.GetObjectUrlAsync(Media.BlobKey);
+        }
+    }
+
+    private async Task OnLoadedMetadataAsync()
+    {
+        // Set volume + start position once metadata is available. Direct
+        // property assignment via a tiny eval is fine for a kiosk app.
+        var volume = Math.Clamp(Item.VideoVolumePercent, 0, 100) / 100.0;
+        var startSec = Math.Max(0, Item.VideoStartSeconds);
+        await JS.InvokeVoidAsync("eval",
+            $"(()=>{{const v=document.querySelectorAll('video');const el=v[v.length-1];if(el){{el.volume={volume};el.currentTime={startSec};}}}})()");
+    }
+}

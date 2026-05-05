@@ -1,0 +1,148 @@
+@*
+    Per-slide settings — duration override, transition, fit, and the
+    type-specific options (video: muted/loop/volume/start; iframe: interactive/zoom).
+    Acts like a stripped-down video editor for one slide at a time.
+*@
+
+<Modal @bind-Visible="visible">
+    <ModalContent Centered Size="ModalSize.Default">
+        <ModalHeader>
+            <ModalTitle><Icon Name="IconName.Edit" /> Slide settings</ModalTitle>
+            <CloseButton />
+        </ModalHeader>
+        <ModalBody>
+            @if (working is not null && media is not null)
+            {
+                <div class="mb-3">
+                    <Badge Color="Color.Info">@media.Kind</Badge>
+                    <strong class="ms-2">@media.Name</strong>
+                </div>
+
+                <Field>
+                    <FieldLabel>Duration override (seconds)</FieldLabel>
+                    <NumericEdit TValue="int?" @bind-Value="durationOverride" Min="1" Max="3600"
+                                 Placeholder="@($"Library default: {media.DefaultDurationSeconds}s")" />
+                </Field>
+
+                <Field>
+                    <FieldLabel>Transition</FieldLabel>
+                    <Select TValue="TransitionKind" @bind-SelectedValue="transition">
+                        <SelectItem Value="TransitionKind.None">None</SelectItem>
+                        <SelectItem Value="TransitionKind.Fade">Fade</SelectItem>
+                    </Select>
+                </Field>
+
+                <Field>
+                    <FieldLabel>Fit</FieldLabel>
+                    <Select TValue="FitMode" @bind-SelectedValue="fit">
+                        <SelectItem Value="FitMode.Contain">Contain (letterbox)</SelectItem>
+                        <SelectItem Value="FitMode.Cover">Cover (crop to fill)</SelectItem>
+                        <SelectItem Value="FitMode.Fill">Fill (stretch)</SelectItem>
+                    </Select>
+                </Field>
+
+                @if (media.Kind == MediaKind.Video)
+                {
+                    <Divider />
+                    <Heading Size="HeadingSize.Is6">Video</Heading>
+                    <Field>
+                        <Switch TValue="bool" @bind-Checked="videoMuted">Muted (recommended for autoplay)</Switch>
+                    </Field>
+                    <Field>
+                        <Switch TValue="bool" @bind-Checked="videoLoop">Loop</Switch>
+                    </Field>
+                    <Field>
+                        <FieldLabel>Volume (%)</FieldLabel>
+                        <NumericEdit TValue="int" @bind-Value="videoVolume" Min="0" Max="100" />
+                    </Field>
+                    <Field>
+                        <FieldLabel>Start at (seconds)</FieldLabel>
+                        <NumericEdit TValue="int" @bind-Value="videoStart" Min="0" Max="86400" />
+                    </Field>
+                }
+
+                @if (media.Kind == MediaKind.Iframe)
+                {
+                    <Divider />
+                    <Heading Size="HeadingSize.Is6">Website</Heading>
+                    <Field>
+                        <Switch TValue="bool" @bind-Checked="iframeInteractive">
+                            Interactive (allow mouse / keyboard)
+                        </Switch>
+                        <FieldHelp>Disable to overlay a transparent layer that blocks input — handy for read-only dashboards.</FieldHelp>
+                    </Field>
+                    <Field>
+                        <FieldLabel>Zoom (%)</FieldLabel>
+                        <NumericEdit TValue="int" @bind-Value="iframeZoom" Min="50" Max="200" Step="5" />
+                    </Field>
+                }
+            }
+        </ModalBody>
+        <ModalFooter>
+            <Button Color="Color.Secondary" Clicked="HideAsync">Cancel</Button>
+            <Button Color="Color.Success" Clicked="SaveAsync">
+                <Icon Name="IconName.Save" /> Save
+            </Button>
+        </ModalFooter>
+    </ModalContent>
+</Modal>
+
+@code {
+    private bool visible;
+    private PlaylistItem? working;
+    private MediaItem? media;
+
+    private int? durationOverride;
+    private TransitionKind transition;
+    private FitMode fit;
+    private bool videoMuted;
+    private bool videoLoop;
+    private int videoVolume;
+    private int videoStart;
+    private bool iframeInteractive;
+    private int iframeZoom;
+
+    [Parameter] public EventCallback<PlaylistItem> OnSaved { get; set; }
+
+    public Task ShowAsync(PlaylistItem item, MediaItem mediaItem)
+    {
+        working = item;
+        media = mediaItem;
+        durationOverride = item.DurationSecondsOverride;
+        transition = item.Transition;
+        fit = item.Fit;
+        videoMuted = item.VideoMuted;
+        videoLoop = item.VideoLoop;
+        videoVolume = item.VideoVolumePercent;
+        videoStart = item.VideoStartSeconds;
+        iframeInteractive = item.IframeInteractive;
+        iframeZoom = item.IframeZoomPercent;
+        visible = true;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task HideAsync()
+    {
+        visible = false;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SaveAsync()
+    {
+        if (working is null) return;
+        var updated = working with
+        {
+            DurationSecondsOverride = durationOverride,
+            Transition = transition,
+            Fit = fit,
+            VideoMuted = videoMuted,
+            VideoLoop = videoLoop,
+            VideoVolumePercent = Math.Clamp(videoVolume, 0, 100),
+            VideoStartSeconds = Math.Max(0, videoStart),
+            IframeInteractive = iframeInteractive,
+            IframeZoomPercent = Math.Clamp(iframeZoom, 50, 200),
+        };
+        visible = false;
+        await OnSaved.InvokeAsync(updated);
+    }
+}

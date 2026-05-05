@@ -91,6 +91,28 @@ export async function getBlobUrl(key) {
     return URL.createObjectURL(blob);
 }
 
+export async function getBlobBase64(key) {
+    const blob = await runStore(BLOB_STORE, 'readonly', store => store.get(key));
+    if (!blob) return null;
+    const buffer = await blob.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
+}
+
+export function downloadJson(filename, content) {
+    const blob = new Blob([content], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
 export async function deleteBlob(key) {
     return runStore(BLOB_STORE, 'readwrite', store => store.delete(key));
 }

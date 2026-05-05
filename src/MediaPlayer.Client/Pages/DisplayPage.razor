@@ -1,0 +1,153 @@
+@page "/"
+@page "/display"
+@page "/display/{KioskIdRoute:guid}"
+@layout DisplayLayout
+
+@*
+    The kiosk URL. Resolves the current display assignment, loads the
+    assigned playlist + its media, and hands them to the SlideHost. To any
+    observer the page looks like only a slideshow — the picker is invisible
+    until summoned via Ctrl+Shift+D or a transparent corner click.
+*@
+
+@using MediaPlayer.Client.Services
+@using MediaPlayer.Client.Components.Display
+@implements IAsyncDisposable
+@inject IDisplayAssignmentStore AssignmentStore
+@inject IRepository<Kiosk> KioskRepo
+@inject IRepository<Playlist> PlaylistRepo
+@inject IRepository<MediaItem> MediaRepo
+@inject DisplayInterop Interop
+
+<PageTitle>MediaPlayer</PageTitle>
+
+<div class="vh-100 vw-100 bg-black position-relative" @onclick="HandleAnyClickAsync">
+    @if (loading)
+    {
+        <div class="text-white-50 d-flex justify-content-center align-items-center h-100">
+            Loading...
+        </div>
+    }
+    else if (assignment is null)
+    {
+        <div class="text-white-50 d-flex flex-column justify-content-center align-items-center h-100">
+            <Icon Name="IconName.Tv" Style="font-size: 4rem;" />
+            <Paragraph Margin="Margin.Is3.FromTop">Display not yet claimed.</Paragraph>
+            <Paragraph TextColor="TextColor.Muted">Press <Code>Ctrl + Shift + D</Code> to assign a kiosk.</Paragraph>
+        </div>
+    }
+    else if (kiosk is null)
+    {
+        <div class="text-warning d-flex justify-content-center align-items-center h-100">
+            Kiosk no longer exists. Press Ctrl+Shift+D to reassign.
+        </div>
+    }
+    else if (playlist is null)
+    {
+        <div class="text-white-50 d-flex justify-content-center align-items-center h-100">
+            No playlist assigned to this kiosk.
+        </div>
+    }
+    else
+    {
+        <SlideHost Items="playlist.Items" MediaById="mediaById" Shuffle="playlist.ShuffleEnabled" />
+    }
+
+    @* Transparent 60x60 corner trigger — opens the picker without revealing chrome. *@
+    <div class="position-absolute top-0 end-0"
+         style="width: 60px; height: 60px; cursor: default;"
+         @onclick:stopPropagation
+         @onclick="ShowPickerAsync"
+         title="Pick display">
+    </div>
+</div>
+
+<DisplayPickerModal @ref="pickerModal" OnAssignmentChanged="ReloadAsync" />
+
+@code {
+    [Parameter] public Guid? KioskIdRoute { get; set; }
+
+    private bool loading = true;
+    private bool fullscreenRequested;
+
+    private DisplayAssignment? assignment;
+    private Kiosk? kiosk;
+    private Playlist? playlist;
+    private Dictionary<Guid, MediaItem> mediaById = new();
+
+    private DisplayPickerModal? pickerModal;
+    private DotNetObjectReference<DisplayPage>? selfRef;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            selfRef = DotNetObjectReference.Create(this);
+            await Interop.RegisterHotkeyAsync(selfRef);
+        }
+    }
+
+    [JSInvokable]
+    public Task OpenDisplayPicker() => ShowPickerAsync();
+
+    private async Task ReloadAsync()
+    {
+        loading = true;
+
+        if (KioskIdRoute is not null)
+        {
+            var hint = await KioskRepo.FindByIdAsync(KioskIdRoute.Value);
+            if (hint is not null)
+            {
+                await AssignmentStore.SetAsync(new DisplayAssignment
+                {
+                    KioskId = hint.Id,
+                    LocationId = hint.LocationId,
+                });
+            }
+        }
+
+        assignment = await AssignmentStore.GetAsync();
+        if (assignment is null)
+        {
+            kiosk = null;
+            playlist = null;
+            loading = false;
+            return;
+        }
+
+        kiosk = await KioskRepo.FindByIdAsync(assignment.KioskId);
+        playlist = kiosk?.AssignedPlaylistId is { } pid
+            ? await PlaylistRepo.FindByIdAsync(pid)
+            : null;
+
+        var media = await MediaRepo.FindAllAsync();
+        mediaById = media.ToDictionary(m => m.Id);
+
+        loading = false;
+    }
+
+    private Task ShowPickerAsync() => pickerModal?.ShowAsync() ?? Task.CompletedTask;
+
+    private async Task HandleAnyClickAsync()
+    {
+        // Browser autoplay policy: video can only start once after a user
+        // gesture. Use the first click on the kiosk to also enter fullscreen.
+        if (!fullscreenRequested)
+        {
+            fullscreenRequested = true;
+            await Interop.RequestFullscreenAsync();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await Interop.UnregisterHotkeyAsync();
+        selfRef?.Dispose();
+    }
+}

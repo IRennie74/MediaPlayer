@@ -1,19 +1,178 @@
 @page "/admin/locations"
 
+@inject IRepository<Location> LocationRepo
+@inject IRepository<Kiosk> KioskRepo
+
 <PageTitle>Locations · MediaPlayer</PageTitle>
 
 <AuthGuard>
     <PageHeaderCard Title="Locations">
         <Action>
-            <Button Color="Color.Primary" Disabled>
+            <Button Color="Color.Primary" Clicked="OpenNewModalAsync">
                 <Icon Name="IconName.Add" /> New Location
             </Button>
         </Action>
     </PageHeaderCard>
 
-    <ContentCard Title="All Locations">
-        <Paragraph TextColor="TextColor.Muted" Margin="Margin.Is0">
-            CRUD arrives in Phase 6.
-        </Paragraph>
+    <ContentCard Title="@($"All Locations ({locations.Count})")">
+        @if (loading)
+        {
+            <Paragraph TextColor="TextColor.Muted">Loading...</Paragraph>
+        }
+        else if (locations.Count == 0)
+        {
+            <Paragraph TextColor="TextColor.Muted">No locations yet.</Paragraph>
+        }
+        else
+        {
+            <Table Hoverable Striped>
+                <TableHeader ThemeContrast="ThemeContrast.Light">
+                    <TableRow>
+                        <TableHeaderCell>Name</TableHeaderCell>
+                        <TableHeaderCell>Description</TableHeaderCell>
+                        <TableHeaderCell>Kiosks</TableHeaderCell>
+                        <TableHeaderCell Class="text-end">Actions</TableHeaderCell>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    @foreach (var loc in locations)
+                    {
+                        <TableRow @key="loc.Id">
+                            <TableRowCell>@loc.Name</TableRowCell>
+                            <TableRowCell>@loc.Description</TableRowCell>
+                            <TableRowCell>@KiosksUnder(loc.Id)</TableRowCell>
+                            <TableRowCell Class="text-end">
+                                <Button Color="Color.Warning" Size="Size.Small" Margin="Margin.Is1.FromEnd"
+                                        Clicked="@(() => OpenEditModalAsync(loc))">
+                                    <Icon Name="IconName.Edit" />
+                                </Button>
+                                <Button Color="Color.Danger" Size="Size.Small" Clicked="@(() => RequestDelete(loc))">
+                                    <Icon Name="IconName.Delete" />
+                                </Button>
+                            </TableRowCell>
+                        </TableRow>
+                    }
+                </TableBody>
+            </Table>
+        }
     </ContentCard>
+
+    <Modal @bind-Visible="editVisible">
+        <ModalContent Centered>
+            <ModalHeader>
+                <ModalTitle>@(editing?.Id == Guid.Empty ? "New" : "Edit") location</ModalTitle>
+                <CloseButton />
+            </ModalHeader>
+            <ModalBody>
+                <Field>
+                    <FieldLabel>Name</FieldLabel>
+                    <TextEdit @bind-Text="nameDraft" />
+                </Field>
+                <Field>
+                    <FieldLabel>Description (optional)</FieldLabel>
+                    <MemoEdit @bind-Text="descDraft" Rows="3" />
+                </Field>
+            </ModalBody>
+            <ModalFooter>
+                <Button Color="Color.Secondary" Clicked="@(() => editVisible = false)">Cancel</Button>
+                <Button Color="Color.Success" Clicked="SaveAsync"
+                        Disabled="string.IsNullOrWhiteSpace(nameDraft)">
+                    <Icon Name="IconName.Save" /> Save
+                </Button>
+            </ModalFooter>
+        </ModalContent>
+    </Modal>
+
+    <ConfirmDeleteModal @ref="deleteModal" Title="Delete location"
+                        Message="@deleteMessage"
+                        OnConfirmed="ConfirmDeleteAsync" />
 </AuthGuard>
+
+@code {
+    private bool loading = true;
+    private List<Location> locations = new();
+    private List<Kiosk> kiosks = new();
+
+    private bool editVisible;
+    private Location? editing;
+    private string nameDraft = string.Empty;
+    private string descDraft = string.Empty;
+
+    private ConfirmDeleteModal? deleteModal;
+    private Location? pendingDelete;
+    private string deleteMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        loading = true;
+        locations = (await LocationRepo.FindAllAsync()).OrderBy(l => l.Name).ToList();
+        kiosks = (await KioskRepo.FindAllAsync()).ToList();
+        loading = false;
+    }
+
+    private int KiosksUnder(Guid locationId) => kiosks.Count(k => k.LocationId == locationId);
+
+    private Task OpenNewModalAsync()
+    {
+        editing = new Location { Id = Guid.Empty, Name = string.Empty };
+        nameDraft = string.Empty;
+        descDraft = string.Empty;
+        editVisible = true;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task OpenEditModalAsync(Location loc)
+    {
+        editing = loc;
+        nameDraft = loc.Name;
+        descDraft = loc.Description ?? string.Empty;
+        editVisible = true;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SaveAsync()
+    {
+        if (editing is null || string.IsNullOrWhiteSpace(nameDraft)) return;
+        if (editing.Id == Guid.Empty)
+        {
+            var created = new Location
+            {
+                Id = Guid.NewGuid(),
+                Name = nameDraft.Trim(),
+                Description = string.IsNullOrWhiteSpace(descDraft) ? null : descDraft.Trim(),
+            };
+            await LocationRepo.CreateAsync(created);
+        }
+        else
+        {
+            var updated = editing with
+            {
+                Name = nameDraft.Trim(),
+                Description = string.IsNullOrWhiteSpace(descDraft) ? null : descDraft.Trim(),
+            };
+            await LocationRepo.UpdateAsync(updated);
+        }
+        editVisible = false;
+        await ReloadAsync();
+    }
+
+    private Task RequestDelete(Location loc)
+    {
+        pendingDelete = loc;
+        var count = KiosksUnder(loc.Id);
+        deleteMessage = count > 0
+            ? $"Delete \"{loc.Name}\"? Its {count} kiosk(s) will be orphaned. This cannot be undone."
+            : $"Delete \"{loc.Name}\"?";
+        return deleteModal?.ShowAsync() ?? Task.CompletedTask;
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (pendingDelete is null) return;
+        await LocationRepo.DeleteAsync(pendingDelete.Id);
+        pendingDelete = null;
+        await ReloadAsync();
+    }
+}

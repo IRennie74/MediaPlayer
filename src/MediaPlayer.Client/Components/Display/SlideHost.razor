@@ -1,0 +1,122 @@
+@*
+    The slideshow engine. Owns the rotation timer; on each tick it asks
+    PlaylistRotationService for the next index and re-renders. Slide
+    components handle their own playback semantics. The host is unaware of
+    image vs. video vs. iframe specifics.
+*@
+
+@using MediaPlayer.Core.Services
+@implements IAsyncDisposable
+
+<div class="w-100 h-100 bg-black">
+    @if (current is not null && currentMedia is not null)
+    {
+        @switch (currentMedia.Kind)
+        {
+            case MediaKind.Image:
+                <ImageSlide Media="currentMedia" Fit="current.Fit" @key="current.Id" />
+                break;
+            case MediaKind.Video:
+                <VideoSlide Media="currentMedia" Item="current" @key="current.Id" />
+                break;
+            case MediaKind.Iframe:
+                <IframeSlide Media="currentMedia" Item="current" @key="current.Id" />
+                break;
+        }
+    }
+    else if (Items.Count == 0)
+    {
+        <div class="text-white-50 d-flex justify-content-center align-items-center h-100">
+            <span>No content. Configure a playlist and assign it to this kiosk.</span>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<PlaylistItem> Items { get; set; } = Array.Empty<PlaylistItem>();
+    [Parameter, EditorRequired] public IReadOnlyDictionary<Guid, MediaItem> MediaById { get; set; } = new Dictionary<Guid, MediaItem>();
+    [Parameter] public bool Shuffle { get; set; }
+
+    private readonly PlaylistRotationService rotation = new();
+
+    private int? currentIndex;
+    private PlaylistItem? current;
+    private MediaItem? currentMedia;
+    private CancellationTokenSource? loopCts;
+
+    protected override Task OnParametersSetAsync()
+    {
+        // First render or items list changed → start at the first slide.
+        if (current is null && Items.Count > 0)
+        {
+            Advance();
+            return RestartLoopAsync();
+        }
+        return Task.CompletedTask;
+    }
+
+    private async Task RestartLoopAsync()
+    {
+        await StopLoopAsync();
+        loopCts = new CancellationTokenSource();
+        _ = LoopAsync(loopCts.Token);
+    }
+
+    private async Task LoopAsync(CancellationToken token)
+    {
+        try
+        {
+            while (!token.IsCancellationRequested)
+            {
+                var seconds = current is not null && currentMedia is not null
+                    ? current.DurationSecondsOverride ?? currentMedia.DefaultDurationSeconds
+                    : 10;
+                seconds = Math.Max(1, seconds);
+                await Task.Delay(TimeSpan.FromSeconds(seconds), token);
+
+                Advance();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (TaskCanceledException) { /* expected on dispose */ }
+    }
+
+    private void Advance()
+    {
+        if (Items.Count == 0)
+        {
+            current = null;
+            currentMedia = null;
+            currentIndex = null;
+            return;
+        }
+        var nextIndex = rotation.Next(Items.Count, currentIndex, Shuffle);
+        if (nextIndex is null)
+        {
+            current = null;
+            currentMedia = null;
+            return;
+        }
+        currentIndex = nextIndex;
+        var ordered = Items.OrderBy(i => i.OrderIndex).ToList();
+        current = ordered[nextIndex.Value];
+        MediaById.TryGetValue(current.MediaItemId, out var media);
+        currentMedia = media;
+    }
+
+    private async Task StopLoopAsync()
+    {
+        if (loopCts is not null)
+        {
+            loopCts.Cancel();
+            try { await Task.Yield(); } catch { }
+            loopCts.Dispose();
+            loopCts = null;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await StopLoopAsync();
+    }
+}

@@ -1,0 +1,139 @@
+@*
+    Cascading picker that claims this browser as a specific kiosk. Stored
+    via IDisplayAssignmentStore (LocalStorage) so the assignment survives
+    refreshes and is naturally per-machine.
+*@
+
+@inject IRepository<Location> LocationRepo
+@inject IRepository<Kiosk> KioskRepo
+@inject IDisplayAssignmentStore Store
+
+<Modal @bind-Visible="visible">
+    <ModalContent Centered>
+        <ModalHeader>
+            <ModalTitle><Icon Name="IconName.Tv" /> Pick this display</ModalTitle>
+            <CloseButton />
+        </ModalHeader>
+        <ModalBody>
+            @if (locations.Count == 0)
+            {
+                <Alert Color="Color.Warning" Visible>
+                    <AlertDescription>
+                        No locations defined yet. An admin must create a Location and Kiosk first.
+                    </AlertDescription>
+                </Alert>
+            }
+            else
+            {
+                <Field>
+                    <FieldLabel>Location</FieldLabel>
+                    <Select TValue="Guid" @bind-SelectedValue="locationId">
+                        @foreach (var l in locations)
+                        {
+                            <SelectItem Value="l.Id">@l.Name</SelectItem>
+                        }
+                    </Select>
+                </Field>
+                <Field>
+                    <FieldLabel>Kiosk</FieldLabel>
+                    <Select TValue="Guid" @bind-SelectedValue="kioskId">
+                        @foreach (var k in KiosksAtLocation)
+                        {
+                            <SelectItem Value="k.Id">@k.Name</SelectItem>
+                        }
+                    </Select>
+                    @if (KiosksAtLocation.Count == 0)
+                    {
+                        <FieldHelp>
+                            <span class="text-danger">No kiosks under this location yet.</span>
+                        </FieldHelp>
+                    }
+                </Field>
+            }
+        </ModalBody>
+        <ModalFooter>
+            @if (HasAssignment)
+            {
+                <Button Color="Color.Light" Clicked="ClearAsync" Margin="Margin.Is2.FromEnd">
+                    Clear
+                </Button>
+            }
+            <Button Color="Color.Secondary" Clicked="HideAsync">Cancel</Button>
+            <Button Color="Color.Success" Clicked="SaveAsync"
+                    Disabled="@(!CanSave)">
+                <Icon Name="IconName.Save" /> Save
+            </Button>
+        </ModalFooter>
+    </ModalContent>
+</Modal>
+
+@code {
+    private bool visible;
+    private List<Location> locations = new();
+    private List<Kiosk> kiosks = new();
+
+    private Guid locationId;
+    private Guid kioskId;
+
+    [Parameter] public EventCallback OnAssignmentChanged { get; set; }
+
+    private bool HasAssignment { get; set; }
+
+    private List<Kiosk> KiosksAtLocation =>
+        kiosks.Where(k => k.LocationId == locationId).OrderBy(k => k.Name).ToList();
+
+    private bool CanSave =>
+        locationId != Guid.Empty && kioskId != Guid.Empty &&
+        kiosks.Any(k => k.Id == kioskId && k.LocationId == locationId);
+
+    public async Task ShowAsync()
+    {
+        visible = true;
+        await ReloadAsync();
+        var existing = await Store.GetAsync();
+        HasAssignment = existing is not null;
+        if (existing is not null)
+        {
+            locationId = existing.LocationId;
+            kioskId = existing.KioskId;
+        }
+        else
+        {
+            locationId = locations.FirstOrDefault()?.Id ?? Guid.Empty;
+            kioskId = kiosks.FirstOrDefault(k => k.LocationId == locationId)?.Id ?? Guid.Empty;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ReloadAsync()
+    {
+        locations = (await LocationRepo.FindAllAsync()).OrderBy(l => l.Name).ToList();
+        kiosks = (await KioskRepo.FindAllAsync()).ToList();
+    }
+
+    private Task HideAsync()
+    {
+        visible = false;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SaveAsync()
+    {
+        if (!CanSave) return;
+        await Store.SetAsync(new DisplayAssignment
+        {
+            KioskId = kioskId,
+            LocationId = locationId,
+        });
+        visible = false;
+        await OnAssignmentChanged.InvokeAsync();
+    }
+
+    private async Task ClearAsync()
+    {
+        await Store.ClearAsync();
+        HasAssignment = false;
+        visible = false;
+        await OnAssignmentChanged.InvokeAsync();
+    }
+}

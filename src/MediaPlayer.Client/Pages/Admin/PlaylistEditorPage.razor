@@ -1,0 +1,223 @@
+@page "/admin/playlists/{Id:guid}"
+
+@using MediaPlayer.Core.Services
+@inject IRepository<Playlist> PlaylistRepo
+@inject IRepository<MediaItem> MediaRepo
+@inject NavigationManager Nav
+
+<PageTitle>Edit Playlist · MediaPlayer</PageTitle>
+
+<AuthGuard>
+    @if (loading)
+    {
+        <Paragraph TextColor="TextColor.Muted">Loading...</Paragraph>
+    }
+    else if (playlist is null)
+    {
+        <Alert Color="Color.Warning" Visible>
+            <AlertDescription>Playlist not found.</AlertDescription>
+        </Alert>
+    }
+    else
+    {
+        <PageHeaderCard Title="@($"Edit · {playlist.Name}")">
+            <Action>
+                <Button Color="Color.Secondary" Margin="Margin.Is2.FromEnd"
+                        Type="ButtonType.Link" To="/admin/playlists">
+                    Back
+                </Button>
+                <Button Color="Color.Success" Clicked="SaveAsync" Disabled="busy">
+                    <Icon Name="IconName.Save" /> @(busy ? "Saving..." : "Save")
+                </Button>
+            </Action>
+        </PageHeaderCard>
+
+        <ContentCard Title="Playlist details" Maximizable="false">
+            <Row>
+                <Column ColumnSize="ColumnSize.Is6">
+                    <Field>
+                        <FieldLabel>Name</FieldLabel>
+                        <TextEdit @bind-Text="nameDraft" />
+                    </Field>
+                </Column>
+                <Column ColumnSize="ColumnSize.Is6">
+                    <Field>
+                        <FieldLabel>Shuffle on play</FieldLabel>
+                        <Switch TValue="bool" @bind-Checked="shuffleDraft">
+                            @(shuffleDraft ? "Shuffled" : "In order")
+                        </Switch>
+                    </Field>
+                </Column>
+            </Row>
+        </ContentCard>
+
+        <ContentCard Title="@($"Items ({playlist.Items.Count})")">
+            <HeaderActions>
+                <Button Color="Color.Primary" Size="Size.Small" Clicked="OpenPickerAsync">
+                    <Icon Name="IconName.Add" /> Add Media
+                </Button>
+            </HeaderActions>
+            <ChildContent>
+                @if (playlist.Items.Count == 0)
+                {
+                    <Paragraph TextColor="TextColor.Muted">
+                        No items yet. Click <strong>Add Media</strong> to populate the playlist.
+                    </Paragraph>
+                }
+                else
+                {
+                    <Table Hoverable Striped>
+                        <TableHeader ThemeContrast="ThemeContrast.Light">
+                            <TableRow>
+                                <TableHeaderCell>#</TableHeaderCell>
+                                <TableHeaderCell>Media</TableHeaderCell>
+                                <TableHeaderCell>Duration</TableHeaderCell>
+                                <TableHeaderCell>Transition</TableHeaderCell>
+                                <TableHeaderCell>Fit</TableHeaderCell>
+                                <TableHeaderCell Class="text-end">Actions</TableHeaderCell>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            @foreach (var item in playlist.Items.OrderBy(i => i.OrderIndex))
+                            {
+                                var media = mediaById.GetValueOrDefault(item.MediaItemId);
+                                <TableRow @key="item.Id">
+                                    <TableRowCell>@(item.OrderIndex + 1)</TableRowCell>
+                                    <TableRowCell>
+                                        @if (media is null)
+                                        {
+                                            <em class="text-danger">Missing media</em>
+                                        }
+                                        else
+                                        {
+                                            <Badge Color="Color.Light" Margin="Margin.Is1.FromEnd">@media.Kind</Badge>@media.Name
+                                        }
+                                    </TableRowCell>
+                                    <TableRowCell>
+                                        @(item.DurationSecondsOverride
+                                            ?? media?.DefaultDurationSeconds ?? 10) s
+                                    </TableRowCell>
+                                    <TableRowCell>@item.Transition</TableRowCell>
+                                    <TableRowCell>@item.Fit</TableRowCell>
+                                    <TableRowCell Class="text-end">
+                                        <Button Color="Color.Light" Size="Size.Small" Margin="Margin.Is1.FromEnd"
+                                                Clicked="@(() => MoveUp(item))" Disabled="@(item.OrderIndex == 0)">
+                                            <Icon Name="IconName.AngleUp" />
+                                        </Button>
+                                        <Button Color="Color.Light" Size="Size.Small" Margin="Margin.Is1.FromEnd"
+                                                Clicked="@(() => MoveDown(item))"
+                                                Disabled="@(item.OrderIndex == playlist.Items.Count - 1)">
+                                            <Icon Name="IconName.AngleDown" />
+                                        </Button>
+                                        <Button Color="Color.Warning" Size="Size.Small" Margin="Margin.Is1.FromEnd"
+                                                Clicked="@(() => OpenItemEditor(item, media))" Disabled="@(media is null)">
+                                            <Icon Name="IconName.Edit" />
+                                        </Button>
+                                        <Button Color="Color.Danger" Size="Size.Small"
+                                                Clicked="@(() => RemoveItem(item))">
+                                            <Icon Name="IconName.Delete" />
+                                        </Button>
+                                    </TableRowCell>
+                                </TableRow>
+                            }
+                        </TableBody>
+                    </Table>
+                }
+            </ChildContent>
+        </ContentCard>
+
+        <MediaPickerModal @ref="pickerModal" OnPicked="HandlePickedAsync" />
+        <PlaylistItemEditModal @ref="itemEditModal" OnSaved="HandleItemSaved" />
+    }
+</AuthGuard>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private bool loading = true;
+    private bool busy;
+    private Playlist? playlist;
+    private string nameDraft = string.Empty;
+    private bool shuffleDraft;
+    private Dictionary<Guid, MediaItem> mediaById = new();
+
+    private MediaPickerModal? pickerModal;
+    private PlaylistItemEditModal? itemEditModal;
+
+    protected override async Task OnInitializedAsync()
+    {
+        loading = true;
+        playlist = await PlaylistRepo.FindByIdAsync(Id);
+        if (playlist is not null)
+        {
+            nameDraft = playlist.Name;
+            shuffleDraft = playlist.ShuffleEnabled;
+        }
+        var allMedia = await MediaRepo.FindAllAsync();
+        mediaById = allMedia.ToDictionary(m => m.Id);
+        loading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (playlist is null) return;
+        busy = true;
+        try
+        {
+            playlist = playlist with
+            {
+                Name = string.IsNullOrWhiteSpace(nameDraft) ? "Untitled playlist" : nameDraft.Trim(),
+                ShuffleEnabled = shuffleDraft,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+            await PlaylistRepo.UpdateAsync(playlist);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private Task OpenPickerAsync() => pickerModal?.ShowAsync() ?? Task.CompletedTask;
+
+    private async Task HandlePickedAsync(Guid mediaItemId)
+    {
+        if (playlist is null) return;
+        playlist = PlaylistMutator.AppendItem(playlist, mediaItemId);
+        await PlaylistRepo.UpdateAsync(playlist);
+    }
+
+    private async Task MoveUp(PlaylistItem item)
+    {
+        if (playlist is null) return;
+        playlist = PlaylistMutator.MoveUp(playlist, item.Id);
+        await PlaylistRepo.UpdateAsync(playlist);
+    }
+
+    private async Task MoveDown(PlaylistItem item)
+    {
+        if (playlist is null) return;
+        playlist = PlaylistMutator.MoveDown(playlist, item.Id);
+        await PlaylistRepo.UpdateAsync(playlist);
+    }
+
+    private async Task RemoveItem(PlaylistItem item)
+    {
+        if (playlist is null) return;
+        playlist = PlaylistMutator.RemoveItem(playlist, item.Id);
+        await PlaylistRepo.UpdateAsync(playlist);
+    }
+
+    private Task OpenItemEditor(PlaylistItem item, MediaItem? media)
+    {
+        if (media is null) return Task.CompletedTask;
+        return itemEditModal?.ShowAsync(item, media) ?? Task.CompletedTask;
+    }
+
+    private async Task HandleItemSaved(PlaylistItem updated)
+    {
+        if (playlist is null) return;
+        playlist = PlaylistMutator.UpdateItem(playlist, updated);
+        await PlaylistRepo.UpdateAsync(playlist);
+    }
+}

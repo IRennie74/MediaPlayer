@@ -60,6 +60,19 @@ public sealed class IndexedDbInterop : IAsyncDisposable
         return await module.InvokeAsync<string?>("getBlobUrl", cancellationToken, key).ConfigureAwait(false);
     }
 
+    public async Task<byte[]?> GetBlobBytesAsync(string key, CancellationToken cancellationToken = default)
+    {
+        var module = await moduleTask.Value.ConfigureAwait(false);
+        var base64 = await module.InvokeAsync<string?>("getBlobBase64", cancellationToken, key).ConfigureAwait(false);
+        return base64 is null ? null : Convert.FromBase64String(base64);
+    }
+
+    public async Task DownloadJsonAsync(string filename, string json, CancellationToken cancellationToken = default)
+    {
+        var module = await moduleTask.Value.ConfigureAwait(false);
+        await module.InvokeVoidAsync("downloadJson", cancellationToken, filename, json).ConfigureAwait(false);
+    }
+
     public async Task DeleteBlobAsync(string key, CancellationToken cancellationToken = default)
     {
         var module = await moduleTask.Value.ConfigureAwait(false);

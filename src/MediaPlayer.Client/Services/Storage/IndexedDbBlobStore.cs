@@ -22,6 +22,9 @@ public sealed class IndexedDbBlobStore : IMediaBlobStore
     public Task<string?> GetObjectUrlAsync(string blobKey, CancellationToken cancellationToken = default)
         => interop.GetBlobUrlAsync(blobKey, cancellationToken);
 
+    public Task<byte[]?> GetBytesAsync(string blobKey, CancellationToken cancellationToken = default)
+        => interop.GetBlobBytesAsync(blobKey, cancellationToken);
+
     public Task DeleteAsync(string blobKey, CancellationToken cancellationToken = default)
         => interop.DeleteBlobAsync(blobKey, cancellationToken);
 }

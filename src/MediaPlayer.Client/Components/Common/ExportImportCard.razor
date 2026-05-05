@@ -1,0 +1,101 @@
+@*
+    Export the entire kiosk database (entities + media blobs) to a single
+    JSON file the operator can copy to another kiosk's browser. Import
+    upserts: existing rows with the same Id are overwritten; rows not
+    present in the file are left in place.
+*@
+
+@using System.IO
+@using System.Text.Json
+@using MediaPlayer.Core.Services
+@using MediaPlayer.Client.Services.Storage
+@inject BackupService Backup
+@inject IndexedDbInterop Interop
+
+<ContentCard Title="Backup" Maximizable="false">
+    <Paragraph TextColor="TextColor.Muted">
+        Export this browser's entire library, playlists, locations and kiosks to a JSON file
+        you can import on another kiosk machine. Media blobs are included as base64.
+    </Paragraph>
+
+    <div class="d-flex gap-2 mb-3">
+        <Button Color="Color.Primary" Clicked="ExportAsync" Disabled="busy">
+            <Icon Name="IconName.Download" /> Export to file
+        </Button>
+        <FileEdit Filter=".json,application/json" Changed="HandleImportSelected" Disabled="busy" />
+    </div>
+
+    @if (!string.IsNullOrEmpty(message))
+    {
+        <Alert Color="@messageColor" Visible>
+            <AlertDescription>@message</AlertDescription>
+        </Alert>
+    }
+</ContentCard>
+
+@code {
+    [Parameter] public EventCallback OnImported { get; set; }
+
+    private bool busy;
+    private string? message;
+    private Color messageColor = Color.Success;
+
+    private async Task ExportAsync()
+    {
+        busy = true;
+        message = null;
+        try
+        {
+            var backup = await Backup.CreateAsync();
+            var json = JsonSerializer.Serialize(backup, new JsonSerializerOptions
+            {
+                WriteIndented = true,
+            });
+            var filename = $"mediaplayer-backup-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.json";
+            await Interop.DownloadJsonAsync(filename, json);
+            messageColor = Color.Success;
+            message = $"Exported {backup.MediaItems.Count} media items, {backup.Playlists.Count} playlists, {backup.Blobs.Count} blobs.";
+        }
+        catch (Exception ex)
+        {
+            messageColor = Color.Danger;
+            message = $"Export failed: {ex.Message}";
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task HandleImportSelected(FileChangedEventArgs e)
+    {
+        var file = e.Files.FirstOrDefault();
+        if (file is null) return;
+
+        busy = true;
+        message = null;
+        try
+        {
+            using var stream = file.OpenReadStream(MediaImportRules.HardMaxFileBytes);
+            using var reader = new StreamReader(stream);
+            var json = await reader.ReadToEndAsync();
+            var backup = JsonSerializer.Deserialize<Backup>(json)
+                ?? throw new InvalidOperationException("File is not a valid backup.");
+
+            await Backup.RestoreAsync(backup);
+
+            messageColor = Color.Success;
+            message = $"Imported {backup.MediaItems.Count} media items, {backup.Playlists.Count} playlists, {backup.Blobs.Count} blobs.";
+            await OnImported.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            messageColor = Color.Danger;
+            message = $"Import failed: {ex.Message}";
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

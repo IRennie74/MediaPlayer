@@ -1,19 +1,111 @@
 @page "/admin/playlists"
 
+@inject IRepository<Playlist> PlaylistRepo
+@inject NavigationManager Nav
+
 <PageTitle>Playlists · MediaPlayer</PageTitle>
 
 <AuthGuard>
     <PageHeaderCard Title="Playlists">
         <Action>
-            <Button Color="Color.Primary" Disabled>
+            <Button Color="Color.Primary" Clicked="CreateNewAsync">
                 <Icon Name="IconName.Add" /> New Playlist
             </Button>
         </Action>
     </PageHeaderCard>
 
-    <ContentCard Title="All Playlists">
-        <Paragraph TextColor="TextColor.Muted" Margin="Margin.Is0">
-            Playlist editor arrives in Phase 5.
-        </Paragraph>
+    <ContentCard Title="@($"All Playlists ({playlists.Count})")">
+        @if (loading)
+        {
+            <Paragraph TextColor="TextColor.Muted">Loading...</Paragraph>
+        }
+        else if (playlists.Count == 0)
+        {
+            <Paragraph TextColor="TextColor.Muted">
+                No playlists yet. Click <strong>New Playlist</strong> to create one.
+            </Paragraph>
+        }
+        else
+        {
+            <Table Hoverable Striped>
+                <TableHeader ThemeContrast="ThemeContrast.Light">
+                    <TableRow>
+                        <TableHeaderCell>Name</TableHeaderCell>
+                        <TableHeaderCell>Items</TableHeaderCell>
+                        <TableHeaderCell>Shuffle</TableHeaderCell>
+                        <TableHeaderCell>Updated</TableHeaderCell>
+                        <TableHeaderCell Class="text-end">Actions</TableHeaderCell>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    @foreach (var p in playlists)
+                    {
+                        <TableRow @key="p.Id">
+                            <TableRowCell>@p.Name</TableRowCell>
+                            <TableRowCell>@p.Items.Count</TableRowCell>
+                            <TableRowCell>@(p.ShuffleEnabled ? "On" : "Off")</TableRowCell>
+                            <TableRowCell>@p.UpdatedAt.LocalDateTime.ToString("g")</TableRowCell>
+                            <TableRowCell Class="text-end">
+                                <Button Color="Color.Warning" Size="Size.Small" Margin="Margin.Is1.FromEnd"
+                                        Type="ButtonType.Link" To="@($"/admin/playlists/{p.Id}")">
+                                    <Icon Name="IconName.Edit" /> Edit
+                                </Button>
+                                <Button Color="Color.Danger" Size="Size.Small" Clicked="@(() => RequestDelete(p))">
+                                    <Icon Name="IconName.Delete" />
+                                </Button>
+                            </TableRowCell>
+                        </TableRow>
+                    }
+                </TableBody>
+            </Table>
+        }
     </ContentCard>
+
+    <ConfirmDeleteModal @ref="deleteModal" Title="Delete playlist"
+                        Message="@deleteMessage"
+                        OnConfirmed="ConfirmDeleteAsync" />
 </AuthGuard>
+
+@code {
+    private bool loading = true;
+    private List<Playlist> playlists = new();
+    private ConfirmDeleteModal? deleteModal;
+    private Playlist? pendingDelete;
+    private string deleteMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        loading = true;
+        var rows = await PlaylistRepo.FindAllAsync();
+        playlists = rows.OrderByDescending(p => p.UpdatedAt).ToList();
+        loading = false;
+    }
+
+    private async Task CreateNewAsync()
+    {
+        var p = new Playlist
+        {
+            Id = Guid.NewGuid(),
+            Name = "Untitled playlist",
+        };
+        await PlaylistRepo.CreateAsync(p);
+        Nav.NavigateTo($"/admin/playlists/{p.Id}");
+    }
+
+    private Task RequestDelete(Playlist p)
+    {
+        pendingDelete = p;
+        deleteMessage = $"Delete \"{p.Name}\" ({p.Items.Count} items)? This cannot be undone.";
+        return deleteModal?.ShowAsync() ?? Task.CompletedTask;
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (pendingDelete is null) return;
+        await PlaylistRepo.DeleteAsync(pendingDelete.Id);
+        pendingDelete = null;
+        await ReloadAsync();
+    }
+}

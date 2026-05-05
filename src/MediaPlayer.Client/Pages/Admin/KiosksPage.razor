@@ -1,19 +1,219 @@
 @page "/admin/kiosks"
 
+@inject IRepository<Kiosk> KioskRepo
+@inject IRepository<Location> LocationRepo
+@inject IRepository<Playlist> PlaylistRepo
+
 <PageTitle>Kiosks · MediaPlayer</PageTitle>
 
 <AuthGuard>
     <PageHeaderCard Title="Kiosks">
         <Action>
-            <Button Color="Color.Primary" Disabled>
+            <Button Color="Color.Primary" Clicked="OpenNewModalAsync"
+                    Disabled="locations.Count == 0">
                 <Icon Name="IconName.Add" /> New Kiosk
             </Button>
         </Action>
     </PageHeaderCard>
 
-    <ContentCard Title="All Kiosks">
-        <Paragraph TextColor="TextColor.Muted" Margin="Margin.Is0">
-            CRUD arrives in Phase 6.
-        </Paragraph>
+    @if (locations.Count == 0)
+    {
+        <Alert Color="Color.Info" Visible>
+            <AlertDescription>
+                Create at least one <a href="/admin/locations">Location</a> before adding kiosks.
+            </AlertDescription>
+        </Alert>
+    }
+
+    <ContentCard Title="@($"All Kiosks ({kiosks.Count})")">
+        @if (loading)
+        {
+            <Paragraph TextColor="TextColor.Muted">Loading...</Paragraph>
+        }
+        else if (kiosks.Count == 0)
+        {
+            <Paragraph TextColor="TextColor.Muted">No kiosks yet.</Paragraph>
+        }
+        else
+        {
+            <Table Hoverable Striped>
+                <TableHeader ThemeContrast="ThemeContrast.Light">
+                    <TableRow>
+                        <TableHeaderCell>Name</TableHeaderCell>
+                        <TableHeaderCell>Location</TableHeaderCell>
+                        <TableHeaderCell>Playlist</TableHeaderCell>
+                        <TableHeaderCell>Open</TableHeaderCell>
+                        <TableHeaderCell Class="text-end">Actions</TableHeaderCell>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    @foreach (var k in kiosks)
+                    {
+                        <TableRow @key="k.Id">
+                            <TableRowCell>@k.Name</TableRowCell>
+                            <TableRowCell>@LocationName(k.LocationId)</TableRowCell>
+                            <TableRowCell>@(PlaylistName(k.AssignedPlaylistId) ?? "(unassigned)")</TableRowCell>
+                            <TableRowCell>
+                                <Button Color="Color.Light" Size="Size.Small"
+                                        Type="ButtonType.Link" To="@($"/display/{k.Id}")" Target="Target.Blank"
+                                        Title="Open as kiosk display">
+                                    <Icon Name="IconName.Tv" />
+                                </Button>
+                            </TableRowCell>
+                            <TableRowCell Class="text-end">
+                                <Button Color="Color.Warning" Size="Size.Small" Margin="Margin.Is1.FromEnd"
+                                        Clicked="@(() => OpenEditModalAsync(k))">
+                                    <Icon Name="IconName.Edit" />
+                                </Button>
+                                <Button Color="Color.Danger" Size="Size.Small" Clicked="@(() => RequestDelete(k))">
+                                    <Icon Name="IconName.Delete" />
+                                </Button>
+                            </TableRowCell>
+                        </TableRow>
+                    }
+                </TableBody>
+            </Table>
+        }
     </ContentCard>
+
+    <Modal @bind-Visible="editVisible">
+        <ModalContent Centered>
+            <ModalHeader>
+                <ModalTitle>@(editing?.Id == Guid.Empty ? "New" : "Edit") kiosk</ModalTitle>
+                <CloseButton />
+            </ModalHeader>
+            <ModalBody>
+                <Field>
+                    <FieldLabel>Name</FieldLabel>
+                    <TextEdit @bind-Text="nameDraft" Placeholder="e.g. Lobby Display 1" />
+                </Field>
+                <Field>
+                    <FieldLabel>Location</FieldLabel>
+                    <Select TValue="Guid" @bind-SelectedValue="locationDraft">
+                        @foreach (var l in locations)
+                        {
+                            <SelectItem Value="l.Id">@l.Name</SelectItem>
+                        }
+                    </Select>
+                </Field>
+                <Field>
+                    <FieldLabel>Assigned playlist (optional)</FieldLabel>
+                    <Select TValue="Guid?" @bind-SelectedValue="playlistDraft">
+                        <SelectItem TValue="Guid?" Value="null">(unassigned)</SelectItem>
+                        @foreach (var p in playlists)
+                        {
+                            <SelectItem TValue="Guid?" Value="p.Id">@p.Name</SelectItem>
+                        }
+                    </Select>
+                </Field>
+            </ModalBody>
+            <ModalFooter>
+                <Button Color="Color.Secondary" Clicked="@(() => editVisible = false)">Cancel</Button>
+                <Button Color="Color.Success" Clicked="SaveAsync"
+                        Disabled="@(!CanSave)">
+                    <Icon Name="IconName.Save" /> Save
+                </Button>
+            </ModalFooter>
+        </ModalContent>
+    </Modal>
+
+    <ConfirmDeleteModal @ref="deleteModal" Title="Delete kiosk"
+                        Message="@deleteMessage"
+                        OnConfirmed="ConfirmDeleteAsync" />
 </AuthGuard>
+
+@code {
+    private bool loading = true;
+    private List<Kiosk> kiosks = new();
+    private List<Location> locations = new();
+    private List<Playlist> playlists = new();
+
+    private bool editVisible;
+    private Kiosk? editing;
+    private string nameDraft = string.Empty;
+    private Guid locationDraft;
+    private Guid? playlistDraft;
+
+    private ConfirmDeleteModal? deleteModal;
+    private Kiosk? pendingDelete;
+    private string deleteMessage = string.Empty;
+
+    private bool CanSave => !string.IsNullOrWhiteSpace(nameDraft) && locationDraft != Guid.Empty;
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        loading = true;
+        kiosks = (await KioskRepo.FindAllAsync()).OrderBy(k => k.Name).ToList();
+        locations = (await LocationRepo.FindAllAsync()).OrderBy(l => l.Name).ToList();
+        playlists = (await PlaylistRepo.FindAllAsync()).OrderBy(p => p.Name).ToList();
+        loading = false;
+    }
+
+    private string LocationName(Guid id) => locations.FirstOrDefault(l => l.Id == id)?.Name ?? "(unknown)";
+    private string? PlaylistName(Guid? id) => id is null ? null : playlists.FirstOrDefault(p => p.Id == id)?.Name;
+
+    private Task OpenNewModalAsync()
+    {
+        editing = new Kiosk { Id = Guid.Empty, LocationId = Guid.Empty, Name = string.Empty };
+        nameDraft = string.Empty;
+        locationDraft = locations.FirstOrDefault()?.Id ?? Guid.Empty;
+        playlistDraft = null;
+        editVisible = true;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task OpenEditModalAsync(Kiosk k)
+    {
+        editing = k;
+        nameDraft = k.Name;
+        locationDraft = k.LocationId;
+        playlistDraft = k.AssignedPlaylistId;
+        editVisible = true;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SaveAsync()
+    {
+        if (editing is null || !CanSave) return;
+        if (editing.Id == Guid.Empty)
+        {
+            var created = new Kiosk
+            {
+                Id = Guid.NewGuid(),
+                Name = nameDraft.Trim(),
+                LocationId = locationDraft,
+                AssignedPlaylistId = playlistDraft,
+            };
+            await KioskRepo.CreateAsync(created);
+        }
+        else
+        {
+            var updated = editing with
+            {
+                Name = nameDraft.Trim(),
+                LocationId = locationDraft,
+                AssignedPlaylistId = playlistDraft,
+            };
+            await KioskRepo.UpdateAsync(updated);
+        }
+        editVisible = false;
+        await ReloadAsync();
+    }
+
+    private Task RequestDelete(Kiosk k)
+    {
+        pendingDelete = k;
+        deleteMessage = $"Delete kiosk \"{k.Name}\"? Any browser already claimed as this kiosk will lose its assignment on next refresh.";
+        return deleteModal?.ShowAsync() ?? Task.CompletedTask;
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (pendingDelete is null) return;
+        await KioskRepo.DeleteAsync(pendingDelete.Id);
+        pendingDelete = null;
+        await ReloadAsync();
+    }
+}

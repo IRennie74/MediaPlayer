@@ -40,6 +40,12 @@ builder.Services.AddScoped<IDisplayAssignmentStore, LocalStorageDisplayAssignmen
 builder.Services.AddScoped<IAuthFlagStore, LocalStorageAuthFlagStore>();
 builder.Services.AddScoped<IAuthGate, AuthGate>();
 
+// Kiosk display interop (fullscreen + global hotkey).
+builder.Services.AddScoped<DisplayInterop>();
+
+// JSON backup / restore for cross-kiosk sync.
+builder.Services.AddScoped<BackupService>();
+
 // One repository per entity type — each bound to its own object store name.
 builder.Services.AddScoped<IRepository<MediaItem>>(sp =>
     new IndexedDbRepository<MediaItem>(sp.GetRequiredService<IndexedDbInterop>(), StoreNames.MediaItems));

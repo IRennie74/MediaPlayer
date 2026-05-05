@@ -1,0 +1,38 @@
+@*
+    Renders an uploaded image fullscreen, honoring the per-item fit mode.
+    Image bytes live in IndexedDB; we resolve a `blob:` object URL once via
+    IMediaBlobStore and assign it to <img src>.
+*@
+
+@inject IMediaBlobStore BlobStore
+
+<div class="w-100 h-100 d-flex align-items-center justify-content-center bg-black">
+    @if (objectUrl is not null)
+    {
+        <img src="@objectUrl"
+             style="@($"width: 100%; height: 100%; object-fit: {FitCss};")"
+             alt="@Media.Name" />
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public MediaItem Media { get; set; } = default!;
+    [Parameter] public FitMode Fit { get; set; } = FitMode.Contain;
+
+    private string? objectUrl;
+
+    private string FitCss => Fit switch
+    {
+        FitMode.Cover => "cover",
+        FitMode.Fill => "fill",
+        _ => "contain",
+    };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrEmpty(Media.BlobKey))
+        {
+            objectUrl = await BlobStore.GetObjectUrlAsync(Media.BlobKey);
+        }
+    }
+}

@@ -1,0 +1,40 @@
+@*
+    Embeds a website fullscreen. Sandbox is permissive enough that the
+    embedded page is fully usable (forms, scripts, popups). Per-item options
+    decide whether the slide is interactive (mouse/keyboard pass through)
+    and at what zoom percentage.
+
+    HARD LIMIT: many sites send X-Frame-Options or CSP frame-ancestors that
+    refuse embedding entirely. There is no client-side bypass — the operator
+    will see a blank slide if the destination refuses.
+*@
+
+<div class="w-100 h-100 position-relative bg-black">
+    <iframe src="@(Media.Url ?? "about:blank")"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals"
+            referrerpolicy="no-referrer"
+            style="@IframeStyle"></iframe>
+
+    @if (!Item.IframeInteractive)
+    {
+        <div class="position-absolute top-0 start-0 w-100 h-100"
+             style="z-index: 10; pointer-events: auto; background: transparent;"></div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public MediaItem Media { get; set; } = default!;
+    [Parameter, EditorRequired] public PlaylistItem Item { get; set; } = default!;
+
+    private string IframeStyle
+    {
+        get
+        {
+            var zoom = Math.Clamp(Item.IframeZoomPercent, 50, 200) / 100.0;
+            // transform-origin keeps the top-left anchored so width/height
+            // adjust together to fully cover the viewport at any zoom level.
+            return $"width: {100 / zoom}%; height: {100 / zoom}%; border: 0;" +
+                   $" transform: scale({zoom}); transform-origin: top left;";
+        }
+    }
+}
