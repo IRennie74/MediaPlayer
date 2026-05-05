@@ -1,3 +1,6 @@
+# Anthropic Company Test without Rules
+This project is a C# app built only by claude and 4 prompts. This project tests claudes ability to program correct c# blazor and blazorise code without any claude.md rules setup. Claude built a visually good app that works, but behind the scene it failed to follow some architecture rules that any c# blazor developer knows. The issues are as follows: poor choices on packages, using out of date packages, generally incorrect achitecture, and switching between clean blazor and blazorise to instead basic css and html.
+
 # MediaPlayer
 
 A Blazor WebAssembly digital signage / kiosk application. Built strictly with
